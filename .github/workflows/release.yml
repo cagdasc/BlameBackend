@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release Tag Name (e.g. v1.0.0)'
+        description: 'Release Tag Name (e.g. v0.0.1-alpha01 or v1.0.0)'
         required: false
-        default: 'v1.0.0'
+        default: 'v0.0.1-alpha01'
 
 permissions:
   contents: write
@@ -37,29 +37,48 @@ jobs:
             npm install --no-audit
           fi
 
-      - name: Build web console
+      - name: Build web console and compile server/cli binaries
         run: npm run build
 
-      - name: Create npm package tarball and compute checksums
+      - name: Create npm package tarball matching tag name and compute checksums
         id: package
         run: |
-          TARBALL=$(npm pack)
-          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
-          echo "Generated package: $TARBALL"
+          RAW_TAG="${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v0.0.1-alpha01' }}"
+          TAG="${RAW_TAG#refs/tags/}"
+          echo "Building release for tag: $TAG"
 
-          # Generate standard SHA-256 checksums file
-          sha256sum "$TARBALL" > checksums.txt
+          # Update version in package.json to match tag (stripping leading 'v' for semver compliance)
+          CLEAN_VERSION="${TAG#v}"
+          npm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version || true
+
+          # Pack the npm tarball
+          BASE_TARBALL=$(npm pack)
+          echo "Generated base tarball: $BASE_TARBALL"
+
+          # Create artifact named identically to the release tag (e.g. blamebackend-v0.0.1-alpha01.tgz)
+          TAG_TARBALL="blamebackend-${TAG}.tgz"
+          cp "$BASE_TARBALL" "$TAG_TARBALL"
+          cp "$BASE_TARBALL" "blamebackend.tgz"
+
+          echo "base_tarball=$BASE_TARBALL" >> $GITHUB_OUTPUT
+          echo "tag_tarball=$TAG_TARBALL" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Generate SHA-256 checksums file for all uploaded artifacts
+          sha256sum "$TAG_TARBALL" "$BASE_TARBALL" "blamebackend.tgz" > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v1.0.0' }}
+          tag_name: ${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v0.0.1-alpha01' }}
           files: |
-            ${{ steps.package.outputs.tarball }}
+            ${{ steps.package.outputs.tag_tarball }}
+            ${{ steps.package.outputs.base_tarball }}
+            blamebackend.tgz
             checksums.txt
           draft: false
-          prerelease: false
+          prerelease: ${{ contains((github.ref_type == 'tag' && github.ref_name) || inputs.tag_name, '-') }}
           generate_release_notes: true
 
       - name: Publish to npm (optional if NPM_TOKEN secret exists)
@@ -67,4 +86,10 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: |
+          TAG="${{ steps.package.outputs.tag }}"
+          if [[ "$TAG" == *"-"* ]]; then
+            npm publish --access public --tag next
+          else
+            npm publish --access public
+          fi

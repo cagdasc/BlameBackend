@@ -25,5 +25,9 @@ export default defineConfig(() => {
       hmr: isCloudPreview ? false : true,
       watch: isCloudPreview ? null : {},
     },
+    build: {
+      outDir: 'dist/client',
+      emptyOutDir: true,
+    },
   };
 });

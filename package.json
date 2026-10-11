@@ -1,6 +1,6 @@
 {
   "name": "blamebackend",
-  "version": "1.0.0",
+  "version": "0.0.1-alpha01",
   "description": "Real-time Android Network Inspector & Terminal TUI for OkHttp and Ktor",
   "type": "module",
   "repository": {
@@ -26,9 +26,9 @@
   ],
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "node server.ts",
+    "start": "node dist/server.js",
     "cli": "tsx desktop-cli.ts",
-    "build": "vite build",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js && esbuild desktop-cli.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/desktop-cli.js",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"

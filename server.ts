@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
+import fs from 'fs';
 import net from 'net';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
 import { adbManager } from './src/server/adbManager.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -228,23 +228,35 @@ async function startServer() {
     });
   });
 
-  const isCloudPreview = Boolean(
-    process.env.APPLET_ID ||
-    process.env.K_SERVICE ||
-    process.env.CNB_STACK_ID ||
-    process.env.DISABLE_HMR === 'true'
-  );
+  const clientDist = path.resolve(__dirname, 'client');
+  const hasBuiltClient = fs.existsSync(path.join(clientDist, 'index.html'));
 
-  // Attach Vite middleware in development
-  const vite = await createViteServer({
-    server: {
-      middlewareMode: true,
-      hmr: isCloudPreview ? false : undefined
-    },
-    appType: 'spa'
-  });
+  if (hasBuiltClient) {
+    // Production mode: Serve pre-built static client files
+    app.use(express.static(clientDist));
+    app.get('*', (req: Request, res: Response) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  } else {
+    // Development mode: Dynamically load Vite middleware
+    const isCloudPreview = Boolean(
+      process.env.APPLET_ID ||
+      process.env.K_SERVICE ||
+      process.env.CNB_STACK_ID ||
+      process.env.DISABLE_HMR === 'true'
+    );
 
-  app.use(vite.middlewares);
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        hmr: isCloudPreview ? false : undefined
+      },
+      appType: 'spa'
+    });
+
+    app.use(vite.middlewares);
+  }
 
   app.listen(PORT, '0.0.0.0', () => {
     const config = adbManager.getConfig();
