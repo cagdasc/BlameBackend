@@ -33,19 +33,7 @@
 
 ## Installation & Running
 
-### Option 1: Run with `npx` (No Install Required)
-
-```bash
-# Launch the Web Console (opens on http://localhost:3000)
-npx blamebackend
-
-# Or stream traffic directly in your terminal
-npx blamebackend --cli
-```
-
----
-
-### Option 2: Install from GitHub Releases
+### Option 1: Install from GitHub Releases
 
 Download `blamebackend-v0.0.1-alpha01.tgz` and `checksums.txt` from the [Releases](https://github.com/cagdasc/Vibe-BlameBackend/releases) page:
 
@@ -66,7 +54,7 @@ blamebackend --cli  # Terminal CLI
 
 ---
 
-### Option 3: Run from Source
+### Option 2: Run from Source
 
 ```bash
 # Clone the repository
@@ -89,40 +77,74 @@ npm run cli
 ## Kotlin Multiplatform (KMP) Setup
 The client library supports **Android, iOS, Compose Desktop, JVM, and Linux** using either Ktor Client or OkHttp.
 
-### 1. Ktor Client Integration (`commonMain` - Multiplatform)
-For multiplatform code running on iOS, Android, Desktop, or Linux:
+### 1. Initialize NetworkInspector
+Initialize the inspector at application startup to register device info and open the background transport socket (`127.0.0.1:10245`):
+
+**Multiplatform / iOS / Linux (`commonMain` / Platform Entry):**
+```kotlin
+import com.cacaosd.networkinspector.transport.NetworkInspector
+import com.cacaosd.networkinspector.transport.NetworkInspectorConfig
+import com.cacaosd.networkinspector.protocol.HelloPayload
+
+NetworkInspector.install(
+    helloPayload = HelloPayload(
+        deviceName = "iOS Simulator",      // or your platform device identifier
+        osVersion = "iOS 17.5",
+        appName = "com.example.kmpapp",
+        appVersion = "1.0.0"
+    ),
+    configuration = NetworkInspectorConfig(
+        port = 10245,                      // Defaults to 10245
+        maxBodySizeBytes = 64 * 1024L      // Safe body buffer limit (64 KB)
+    )
+)
+```
+
+**Android (`androidMain` - `Application.onCreate`):**
+```kotlin
+import com.cacaosd.networkinspector.transport.NetworkInspector
+import com.cacaosd.networkinspector.transport.install
+
+// In your Application.onCreate:
+NetworkInspector.install(this)
+```
+
+**Desktop / JVM (`jvmMain` - `main`):**
+```kotlin
+import com.cacaosd.networkinspector.transport.NetworkInspector
+import com.cacaosd.networkinspector.transport.install
+
+NetworkInspector.install(
+    appName = "MyDesktopApp",
+    appVersion = "1.0.0"
+)
+```
+
+### 2. Ktor Client Integration (`commonMain` - Multiplatform)
+For multiplatform HTTP requests across Android, iOS, Compose Desktop, and Linux, install the `NetworkInspectorPlugin`:
 
 ```kotlin
 import io.ktor.client.HttpClient
-import com.cacaosd.networkinspector.ktor.NetworkInspectorKtorPlugin
+import com.cacaosd.networkinspector.ktor.NetworkInspectorPlugin
 
 val client = HttpClient {
-    install(NetworkInspectorKtorPlugin) {
-        // Defaults to 127.0.0.1:10245 (or specify host machine IP for physical devices)
-        host = "127.0.0.1"
-        port = 10245
-    }
+    install(NetworkInspectorPlugin)
 }
 ```
 
-### 2. OkHttp Interceptor (`androidMain` & `jvmMain`)
+### 3. OkHttp Interceptor (`androidMain` & `jvmMain`)
 For Android or JVM apps using OkHttp:
 
 ```kotlin
 import okhttp3.OkHttpClient
-import com.cacaosd.networkinspector.NetworkInspector
 import com.cacaosd.networkinspector.okhttp.NetworkInspectorInterceptor
 
-// In your Android Application onCreate:
-NetworkInspector.install(this)
-
-// In your OkHttpClient builder:
 val client = OkHttpClient.Builder()
     .addInterceptor(NetworkInspectorInterceptor())
     .build()
 ```
 
-### 3. Running Sample Applications
+### 4. Running Sample Applications
 
 **Android App:**
 ```bash
@@ -140,13 +162,13 @@ cd client
 
 ![Devices](assets/devices.png)
 
-### 4. Custom Request Dispatcher
+### 5. Custom Request Dispatcher
 
 Test endpoint edge cases or inject custom payloads directly into the inspector using the built-in Dispatcher:
 
 ![Dispatcher](assets/dispatcher.png)
 
-### 4. Standalone Terminal CLI Preview
+### 6. Standalone Terminal CLI Preview
 
 ```bash
 blamebackend --cli

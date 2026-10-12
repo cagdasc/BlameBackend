@@ -849,16 +849,14 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           <div className="bg-[#07090d] p-3 rounded border border-neutral-800/80 font-mono text-[11px] text-neutral-300 space-y-2">
             <div>
               <div className="text-cyan-400 font-semibold">// 1. commonMain (Ktor Client - Android, iOS, Desktop, Linux):</div>
+              <div className="text-neutral-400">NetworkInspector.install(helloPayload, NetworkInspectorConfig(port = {port}))</div>
               <div className="text-neutral-300">val client = HttpClient &#123;</div>
-              <div className="pl-4 text-neutral-300">install(NetworkInspectorKtorPlugin) &#123;</div>
-              <div className="pl-8 text-neutral-400">host = "127.0.0.1" <span className="text-neutral-500">// or host IP for physical devices</span></div>
-              <div className="pl-8 text-neutral-400">port = {port}</div>
-              <div className="pl-4 text-neutral-300">&#125;</div>
+              <div className="pl-4 text-neutral-300">install(NetworkInspectorPlugin)</div>
               <div className="text-neutral-300">&#125;</div>
             </div>
             <div className="pt-2 border-t border-neutral-800/60">
               <div className="text-cyan-400 font-semibold">// 2. androidMain / jvmMain (OkHttp Interceptor):</div>
-              <div className="text-neutral-400">NetworkInspector.install(applicationContext) <span className="text-neutral-500">// Android onCreate</span></div>
+              <div className="text-neutral-400">NetworkInspector.install(context, NetworkInspectorConfig(port = {port}))</div>
               <div className="text-neutral-300">val okHttpClient = OkHttpClient.Builder()</div>
               <div className="pl-4 text-neutral-300">.addInterceptor(NetworkInspectorInterceptor())</div>
               <div className="pl-4 text-neutral-300">.build()</div>
