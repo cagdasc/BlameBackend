@@ -56,6 +56,8 @@ export interface NetworkEvent {
   error: NetworkError | null;
   timing?: NetworkTiming;
   status: 'pending' | 'completed' | 'error';
+  clientId?: string;
+  deviceName?: string;
 }
 
 export type WireMessageType =
@@ -76,12 +78,15 @@ export interface WireMessage {
 }
 
 export interface DeviceInfo {
-  deviceName: String;
-  osVersion: String;
-  appName: String;
-  appVersion: String;
+  id?: string;
+  deviceName: string;
+  osVersion: string;
+  appName: string;
+  appVersion: string;
   connectedAt: number;
   port: number;
+  capabilities?: string[];
+  clientType?: string;
 }
 
 export interface FilterCriteria {

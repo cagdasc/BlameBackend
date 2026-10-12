@@ -31,11 +31,29 @@ interface DeviceItem {
   device?: string;
 }
 
+interface ConnectedClientItem {
+  id: string;
+  remoteAddress: string;
+  remotePort: number;
+  connectedAt: number;
+  port: number;
+  deviceName: string;
+  osVersion: string;
+  appName: string;
+  appVersion: string;
+  capabilities?: string[];
+  clientType?: string;
+}
+
 interface AdbStatusResponse {
   connected: boolean;
   port: number;
   host: string;
   device: any;
+  devices?: ConnectedClientItem[];
+  clientCount?: number;
+  tcpServerListening?: boolean;
+  tcpServerError?: string;
   adbAvailable: boolean;
   adbVersion?: string;
   adbError?: string;
@@ -44,6 +62,7 @@ interface AdbStatusResponse {
     port: number;
     selectedSerial?: string;
   };
+  reverses?: string[];
   forwards: string[];
 }
 
@@ -55,15 +74,19 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const [adbPath, setAdbPath] = useState('adb');
   const [port, setPort] = useState(10245);
   const [devices, setDevices] = useState<DeviceItem[]>([]);
+  const [connectedClients, setConnectedClients] = useState<ConnectedClientItem[]>([]);
   const [selectedSerial, setSelectedSerial] = useState<string>('');
   const [adbAvailable, setAdbAvailable] = useState<boolean | null>(null);
   const [adbVersion, setAdbVersion] = useState<string>('');
   const [adbError, setAdbError] = useState<string>('');
   const [activeForwards, setActiveForwards] = useState<string[]>([]);
+  const [activeReverses, setActiveReverses] = useState<string[]>([]);
+  const [tcpListening, setTcpListening] = useState<boolean>(true);
+  const [tcpError, setTcpError] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRestartingServer, setIsRestartingServer] = useState(false);
-  const [isAutoForwarding, setIsAutoForwarding] = useState(false);
+  const [isAutoReversing, setIsAutoReversing] = useState(false);
   const [isTestingAdb, setIsTestingAdb] = useState(false);
   const [isAutoDetecting, setIsAutoDetecting] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
@@ -71,14 +94,14 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const [commandLog, setCommandLog] = useState<{ command: string; output: string; error?: boolean } | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Track if we already auto-forwarded for the current device to prevent duplicate calls
-  const lastAutoForwardedSerialRef = useRef<string | null>(null);
+  // Track if we already auto-reversed for the current device to prevent duplicate calls
+  const lastAutoReversedSerialRef = useRef<string | null>(null);
 
-  // 1. Initial live check on mount (no stale cache)
+  // 1. Initial live check on mount
   useEffect(() => {
     let isMounted = true;
 
-    const checkDevicesAndAutoForward = async () => {
+    const checkDevicesAndAutoReverse = async () => {
       setIsLoading(true);
       try {
         const [statusRes, devicesRes] = await Promise.all([
@@ -96,6 +119,12 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           setAdbPath(statusData.config.adbPath || 'adb');
           setPort(statusData.config.port || 10245);
           setActiveForwards(statusData.forwards || []);
+          setActiveReverses(statusData.reverses || []);
+          setTcpListening(Boolean(statusData.tcpServerListening ?? true));
+          setTcpError(statusData.tcpServerError || null);
+          if (Array.isArray(statusData.devices)) {
+            setConnectedClients(statusData.devices);
+          }
         }
 
         if (devicesRes.ok) {
@@ -108,8 +137,8 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
             const targetDevice = devList.find(d => d.state === 'device') || devList[0];
             setSelectedSerial(targetDevice.serial);
 
-            // Automatically run port forwarding right after device is selected!
-            await triggerPortForward(targetDevice.serial, port, true);
+            // Automatically run port reversal so device can connect out to our server!
+            await triggerPortReverse(targetDevice.serial, port, true);
           }
         }
       } catch (err: any) {
@@ -121,23 +150,73 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
       }
     };
 
-    checkDevicesAndAutoForward();
+    checkDevicesAndAutoReverse();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // 2. Automatically run port forwarding whenever device selection changes
+  // 2. Automatically run port reversal whenever device selection changes
   const handleDeviceSelect = async (serial: string) => {
     setSelectedSerial(serial);
     if (!serial) return;
-    await triggerPortForward(serial, port, false);
+    await triggerPortReverse(serial, port, false);
   };
 
-  // Helper function to execute port forwarding for a selected device
-  const triggerPortForward = async (serial: string, targetPort: number = port, isAuto: boolean = false) => {
-    setIsAutoForwarding(true);
+  // Helper function to execute `adb reverse tcp:<port> tcp:<port>`
+  const triggerPortReverse = async (serial: string, targetPort: number = port, isAuto: boolean = false) => {
+    setIsAutoReversing(true);
+    try {
+      const res = await fetch('/api/adb/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port: targetPort, serial })
+      });
+      const data = await res.json();
+      if (data.success) {
+        lastAutoReversedSerialRef.current = serial;
+        setCommandLog({
+          command: `adb ${serial ? `-s ${serial} ` : ''}reverse tcp:${targetPort} tcp:${targetPort}`,
+          output: data.output || `Reverse rule active: device tcp:${targetPort} -> host tcp:${targetPort}`
+        });
+        showSuccess(
+          isAuto
+            ? `Device ready! Port ${targetPort} reversed to BlameBackend server.`
+            : `Port ${targetPort} reversed for device ${serial}!`
+        );
+        onRefreshSocket();
+
+        // Refresh status
+        const statusRes = await fetch('/api/adb/status');
+        if (statusRes.ok) {
+          const statusData: AdbStatusResponse = await statusRes.json();
+          setActiveReverses(statusData.reverses || []);
+          setActiveForwards(statusData.forwards || []);
+          if (Array.isArray(statusData.devices)) {
+            setConnectedClients(statusData.devices);
+          }
+        }
+      } else {
+        setCommandLog({
+          command: `adb ${serial ? `-s ${serial} ` : ''}reverse tcp:${targetPort} tcp:${targetPort}`,
+          output: data.error || 'Port reverse failed',
+          error: true
+        });
+      }
+    } catch (err: any) {
+      setCommandLog({
+        command: `adb ${serial ? `-s ${serial} ` : ''}reverse tcp:${targetPort} tcp:${targetPort}`,
+        output: err.message,
+        error: true
+      });
+    } finally {
+      setIsAutoReversing(false);
+    }
+  };
+
+  // Helper function for fallback `adb forward`
+  const triggerPortForward = async (serial: string, targetPort: number = port) => {
     try {
       const res = await fetch('/api/adb/forward', {
         method: 'POST',
@@ -145,40 +224,20 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
         body: JSON.stringify({ port: targetPort, serial })
       });
       const data = await res.json();
+      setCommandLog({
+        command: `adb ${serial ? `-s ${serial} ` : ''}forward tcp:${targetPort} tcp:${targetPort}`,
+        output: data.output || data.error,
+        error: !data.success
+      });
       if (data.success) {
-        lastAutoForwardedSerialRef.current = serial;
-        setCommandLog({
-          command: `adb -s ${serial} forward tcp:${targetPort} tcp:${targetPort}`,
-          output: data.output || `Port ${targetPort} forwarded to device ${serial}!`
-        });
-        showSuccess(
-          isAuto
-            ? `Device connected! Port ${targetPort} automatically forwarded.`
-            : `Port ${targetPort} forwarded for device ${serial}!`
-        );
-        onRefreshSocket();
-
-        // Refresh forward list
-        const statusRes = await fetch('/api/adb/status');
-        if (statusRes.ok) {
-          const statusData = await statusRes.json();
-          setActiveForwards(statusData.forwards || []);
-        }
-      } else {
-        setCommandLog({
-          command: `adb -s ${serial} forward tcp:${targetPort} tcp:${targetPort}`,
-          output: data.error || 'Port forward failed',
-          error: true
-        });
+        showSuccess(`Port ${targetPort} forwarded!`);
       }
     } catch (err: any) {
       setCommandLog({
-        command: `adb -s ${serial} forward tcp:${targetPort} tcp:${targetPort}`,
+        command: `adb forward tcp:${targetPort} tcp:${targetPort}`,
         output: err.message,
         error: true
       });
-    } finally {
-      setIsAutoForwarding(false);
     }
   };
 
@@ -204,7 +263,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           if (devList.length > 0) {
             const chosen = devList[0].serial;
             setSelectedSerial(chosen);
-            await triggerPortForward(chosen, port, true);
+            await triggerPortReverse(chosen, port, true);
           }
         }
       } else {
@@ -252,7 +311,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
             ? selectedSerial
             : devList[0].serial;
           setSelectedSerial(chosen);
-          await triggerPortForward(chosen, port, false);
+          await triggerPortReverse(chosen, port, false);
         } else {
           setSelectedSerial('');
         }
@@ -342,6 +401,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   };
 
   const selectedDevice = devices.find(d => d.serial === selectedSerial);
+  const hasReverseRule = activeReverses.some(r => r.includes(`tcp:${port}`));
   const hasForwardRule = activeForwards.some(f => f.includes(`tcp:${port}`));
 
   return (
@@ -352,10 +412,10 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           <div>
             <h2 className="text-xl font-bold text-neutral-100 flex items-center gap-2">
               <Smartphone className="w-5 h-5 text-cyan-400" />
-              <span>Devices</span>
+              <span>Devices &amp; Server Socket</span>
             </h2>
             <p className="text-neutral-400 text-xs mt-1">
-              Select your target device. Port forwarding runs automatically upon selection.
+              Host runs TCP Server Socket on port {port}. Android clients connect via <code className="text-cyan-300 font-mono">adb reverse</code>; Desktop connects directly.
             </p>
           </div>
 
@@ -379,13 +439,84 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           </div>
         )}
 
-        {/* 1. Device Selection & Auto-Forward Card */}
+        {/* 1. Host TCP Server Status Card */}
+        <div className="bg-[#0e121a] p-5 rounded-lg border border-neutral-800 space-y-4 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-cyan-400" />
+              <h3 className="text-sm font-semibold text-neutral-200">
+                TCP Server Socket Status
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium ${
+                tcpListening
+                  ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-800/80'
+                  : 'bg-rose-950/70 text-rose-300 border border-rose-800/80'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${tcpListening ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                <span>{tcpListening ? `Listening on 0.0.0.0:${port}` : `Server Error: ${tcpError || 'Not Listening'}`}</span>
+              </span>
+            </div>
+          </div>
+
+          <p className="text-xs text-neutral-400 leading-relaxed">
+            The BlameBackend host server listens on TCP port <code className="text-cyan-300 font-mono">{port}</code>. Both Compose Desktop and Android applications connect as clients simultaneously without port conflicts.
+          </p>
+
+          {/* Connected Client Platforms List */}
+          <div className="space-y-2 pt-1">
+            <div className="text-[11px] font-semibold text-neutral-300 flex items-center justify-between">
+              <span>Connected Platforms ({connectedClients.length})</span>
+              <span className="text-neutral-500 font-normal">Auto-detected upon socket connect</span>
+            </div>
+
+            {connectedClients.length === 0 ? (
+              <div className="p-3 bg-[#07090d] rounded border border-neutral-800/80 text-xs text-neutral-400 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                <span>Waiting for client apps to connect to <code className="text-neutral-300 font-mono">127.0.0.1:{port}</code>...</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {connectedClients.map((client) => (
+                  <div
+                    key={client.id}
+                    className="p-3 bg-[#07090d] border border-cyan-500/40 rounded flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                      <div>
+                        <div className="font-semibold text-neutral-100 flex items-center gap-2">
+                          <span>{client.deviceName || 'Client Device'}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 bg-neutral-800 text-cyan-300 rounded">
+                            {client.appName || 'App'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-neutral-400 font-mono mt-0.5">
+                          {client.osVersion} · {client.remoteAddress}:{client.remotePort}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-mono">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Live Stream Active</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Device Selection & Auto-Reverse Card */}
         <div className="bg-[#0e121a] p-5 rounded-lg border border-neutral-800 space-y-5 shadow-lg">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-cyan-400" />
               <h3 className="text-sm font-semibold text-neutral-200">
-                Connected Devices ({devices.length})
+                ADB Attached Devices ({devices.length})
               </h3>
             </div>
 
@@ -424,7 +555,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
               {/* Dropdown Selection if 2+ devices, or Single-device Display if 1 */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                  {devices.length > 1 ? 'Target Device (Select to Forward)' : 'Connected Device (Auto-Selected)'}
+                  {devices.length > 1 ? 'Target Device (Select to Reverse)' : 'Connected Device (Auto-Selected)'}
                 </label>
 
                 {devices.length > 1 ? (
@@ -462,39 +593,39 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
                 )}
               </div>
 
-              {/* Automatic Port Forwarding Status Banner */}
+              {/* Automatic Port Reversal Status Banner */}
               <div className="p-3 bg-neutral-900/90 rounded border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2">
                   <Cable className="w-4 h-4 text-cyan-400" />
                   <div>
                     <span className="font-semibold text-neutral-200">
-                      Automatic Port Forwarding:
+                      ADB Reverse Port:
                     </span>{' '}
                     <span className="text-cyan-300 font-mono">
-                      tcp:{port} → tcp:{port}
+                      device tcp:{port} → host tcp:{port}
                     </span>{' '}
                     <span className="text-neutral-400 text-[11px]">
-                      ({isAutoForwarding ? 'Forwarding...' : hasForwardRule ? 'Active' : 'Configured'})
+                      ({isAutoReversing ? 'Reversing...' : hasReverseRule ? 'Active' : 'Configured'})
                     </span>
                   </div>
                 </div>
 
-                {/* Edge-case Re-forward button */}
+                {/* Re-Reverse button */}
                 <button
-                  onClick={() => triggerPortForward(selectedSerial, port, false)}
-                  disabled={isAutoForwarding || !selectedSerial}
+                  onClick={() => triggerPortReverse(selectedSerial, port, false)}
+                  disabled={isAutoReversing || !selectedSerial}
                   className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded border border-neutral-700 text-[11px] font-medium transition-colors flex items-center gap-1.5 shrink-0 self-start sm:self-auto disabled:opacity-50"
-                  title="Re-run port forwarding rule for this device"
+                  title="Re-run ADB reverse rule for this device"
                 >
-                  <RefreshCw className={`w-3 h-3 ${isAutoForwarding ? 'animate-spin' : ''}`} />
-                  <span>Re-Forward Port</span>
+                  <RefreshCw className={`w-3 h-3 ${isAutoReversing ? 'animate-spin' : ''}`} />
+                  <span>Reverse Port</span>
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* 2. Edge Case Recovery Panel */}
+        {/* 3. Edge Case Recovery Panel */}
         <div className="bg-[#0e121a] p-5 rounded-lg border border-neutral-800 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -506,7 +637,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           </div>
 
           <p className="text-xs text-neutral-400">
-            If your Android device is connected via USB but ADB is unresponsive or dropped the connection, use this button to restart the local ADB daemon.
+            If your Android device is connected via USB but ADB is unresponsive, use these controls to restart ADB or force reverse/forward rules.
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -520,14 +651,24 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
             </button>
 
             {selectedSerial && (
-              <button
-                onClick={() => triggerPortForward(selectedSerial, port, false)}
-                disabled={isAutoForwarding}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-cyan-300 border border-neutral-700 hover:border-cyan-700/80 rounded text-xs font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                <Cable className="w-3.5 h-3.5" />
-                <span>Force Re-Forward Port {port}</span>
-              </button>
+              <>
+                <button
+                  onClick={() => triggerPortReverse(selectedSerial, port, false)}
+                  disabled={isAutoReversing}
+                  className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-cyan-300 border border-neutral-700 hover:border-cyan-700/80 rounded text-xs font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Cable className="w-3.5 h-3.5" />
+                  <span>Force Reverse Port {port}</span>
+                </button>
+
+                <button
+                  onClick={() => triggerPortForward(selectedSerial, port)}
+                  className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 rounded text-xs font-medium transition-colors flex items-center gap-2"
+                >
+                  <Cable className="w-3.5 h-3.5 text-neutral-400" />
+                  <span>Legacy Forward Port {port}</span>
+                </button>
+              </>
             )}
           </div>
         </div>

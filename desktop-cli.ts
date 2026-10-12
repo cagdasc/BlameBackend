@@ -63,45 +63,90 @@ interface NetworkEventDto {
 
 console.log('==================================================');
 console.log('  BlameBackend CLI (TypeScript/Node.js Engine)');
-console.log('  Raw TCP Socket Reader for Android Network Traffic');
+console.log('  TCP Server Socket Host for Multi-Platform Traffic');
 console.log('==================================================');
-console.log(`Connecting to Android device on ${ADB_HOST}:${ADB_PORT}...`);
-console.log(`(Make sure you ran: adb forward tcp:${ADB_PORT} tcp:${ADB_PORT})\n`);
 
-// Create raw TCP Socket connection to ADB forwarded port
-const socket = net.createConnection({ host: ADB_HOST, port: ADB_PORT }, () => {
-  console.log(`\x1b[32m[CONNECTED]\x1b[0m Successfully hooked into Android TCP socket on ${ADB_HOST}:${ADB_PORT}!`);
-  console.log('Streaming live HTTP traffic from OkHttp and Ktor:\n');
-});
+function startTcpServer() {
+  const server = net.createServer((socket) => {
+    const remote = `${socket.remoteAddress}:${socket.remotePort}`;
+    console.log(`\x1b[32m[DEVICE CONNECTED]\x1b[0m Inbound connection from ${remote}`);
 
-// Buffer incoming chunks and split by newline delimiter
-let buffer = '';
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf-8');
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
-socket.on('data', (chunk) => {
-  buffer += chunk.toString('utf-8');
-  const lines = buffer.split('\n');
-  buffer = lines.pop() || ''; // Keep any incomplete fragment in the buffer
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        handleRawWireMessage(line);
+      }
+    });
 
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    handleRawWireMessage(line);
+    socket.on('error', (err) => {
+      console.log(`\x1b[33m[SOCKET NOTICE]\x1b[0m ${err.message}`);
+    });
+
+    socket.on('close', () => {
+      console.log(`\x1b[33m[DEVICE DISCONNECTED]\x1b[0m Disconnected: ${remote}`);
+    });
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`\x1b[33m[PORT 10245 IN USE]\x1b[0m BlameBackend web server is likely already running on port 10245.`);
+      console.log(`Hooking into server stream at http://127.0.0.1:3000/api/stream...\n`);
+      connectToHttpSseStream();
+    } else {
+      console.error(`\x1b[31m[TCP SERVER ERROR]\x1b[0m ${err.message}`);
+    }
+  });
+
+  server.listen(ADB_PORT, '0.0.0.0', () => {
+    console.log(`\x1b[32m[SERVER LISTENING]\x1b[0m Hosting TCP Server Socket on 0.0.0.0:${ADB_PORT}`);
+    console.log(`• Android: Run \x1b[33madb reverse tcp:${ADB_PORT} tcp:${ADB_PORT}\x1b[0m`);
+    console.log(`• Desktop: Connects directly to 127.0.0.1:${ADB_PORT}`);
+    console.log('Waiting for incoming client connections...\n');
+  });
+}
+
+async function connectToHttpSseStream() {
+  try {
+    const http = await import('http');
+    const req = http.get('http://127.0.0.1:3000/api/stream', (res) => {
+      console.log(`\x1b[32m[ATTACHED]\x1b[0m Tailing live stream from BlameBackend web server:\n`);
+      let buffer = '';
+
+      res.on('data', (chunk) => {
+        buffer += chunk.toString('utf-8');
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (line.startsWith('data:')) {
+            try {
+              const msg = JSON.parse(line.substring(5).trim());
+              if (msg.type === 'DEVICE_INFO') {
+                console.log(`\x1b[36m[DEVICE DETECTED]\x1b[0m ${msg.device?.deviceName || 'Device'} (${msg.device?.osVersion}) - App: ${msg.device?.appName}`);
+              } else if (msg.type === 'NETWORK_EVENT' && msg.event) {
+                renderTerminalEvent(msg.event);
+              }
+            } catch {}
+          }
+        }
+      });
+    });
+
+    req.on('error', () => {
+      console.error(`\x1b[31m[FAILED]\x1b[0m Could not connect to BlameBackend server at http://127.0.0.1:3000.`);
+    });
+  } catch (err: any) {
+    console.error(`\x1b[31m[STREAM ERROR]\x1b[0m ${err.message}`);
   }
-});
+}
 
-socket.on('error', (err: any) => {
-  if (err.code === 'ECONNREFUSED') {
-    console.error(`\x1b[31m[CONNECTION REFUSED]\x1b[0m Could not connect to ${ADB_HOST}:${ADB_PORT}.`);
-    console.error('1. Did you run: \x1b[33madb forward tcp:10245 tcp:10245\x1b[0m ?');
-    console.error('2. Is your debug Android app running with NetworkInspector.install(context)?');
-  } else {
-    console.error(`\x1b[31m[SOCKET ERROR]\x1b[0m ${err.message}`);
-  }
-});
-
-socket.on('close', () => {
-  console.log('\n\x1b[33m[DISCONNECTED]\x1b[0m Android device disconnected.');
-  process.exit(0);
-});
+startTcpServer();
 
 function handleRawWireMessage(rawJson: string) {
   try {

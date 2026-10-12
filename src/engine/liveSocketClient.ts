@@ -7,12 +7,14 @@ import { NetworkEvent, DeviceInfo } from '../types/inspector';
 
 export type LiveStreamCallback = (event: NetworkEvent) => void;
 export type DeviceCallback = (device: DeviceInfo) => void;
+export type DeviceListCallback = (devices: DeviceInfo[]) => void;
 export type StatusCallback = (connected: boolean) => void;
 
 class LiveSocketClient {
   private eventSource: EventSource | null = null;
   private onEventListeners: LiveStreamCallback[] = [];
   private onDeviceListeners: DeviceCallback[] = [];
+  private onDeviceListListeners: DeviceListCallback[] = [];
   private onStatusListeners: StatusCallback[] = [];
   private isConnected = false;
 
@@ -32,8 +34,20 @@ class LiveSocketClient {
             if (msg.device) {
               this.onDeviceListeners.forEach(cb => cb(msg.device));
             }
+            if (Array.isArray(msg.devices)) {
+              this.onDeviceListListeners.forEach(cb => cb(msg.devices));
+            }
           } else if (msg.type === 'DEVICE_INFO') {
-            this.onDeviceListeners.forEach(cb => cb(msg.device));
+            if (msg.device) {
+              this.onDeviceListeners.forEach(cb => cb(msg.device));
+            }
+            if (Array.isArray(msg.devices)) {
+              this.onDeviceListListeners.forEach(cb => cb(msg.devices));
+            }
+          } else if (msg.type === 'CLIENT_DISCONNECTED') {
+            if (Array.isArray(msg.devices)) {
+              this.onDeviceListListeners.forEach(cb => cb(msg.devices));
+            }
           } else if (msg.type === 'NETWORK_EVENT') {
             this.onEventListeners.forEach(cb => cb(msg.event));
           }
@@ -62,6 +76,13 @@ class LiveSocketClient {
     this.onDeviceListeners.push(cb);
     return () => {
       this.onDeviceListeners = this.onDeviceListeners.filter(l => l !== cb);
+    };
+  }
+
+  public onDeviceList(cb: DeviceListCallback): () => void {
+    this.onDeviceListListeners.push(cb);
+    return () => {
+      this.onDeviceListListeners = this.onDeviceListListeners.filter(l => l !== cb);
     };
   }
 

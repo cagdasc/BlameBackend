@@ -9,77 +9,31 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = 3000;
-const ADB_HOST = '127.0.0.1';
+const HOST = '127.0.0.1';
+
+interface ConnectedClientSession {
+  id: string;
+  socket: net.Socket;
+  remoteAddress: string;
+  remotePort: number;
+  connectedAt: number;
+  deviceInfo: any | null;
+}
 
 async function startServer() {
   const app = express();
   app.use(express.json());
 
-  // Connected SSE clients for live web UI streaming
+  // Connected SSE clients for live browser UI streaming
   const sseClients: Response[] = [];
 
-  // Active state of real Android socket connection
-  let isAdbConnected = false;
-  let detectedDevice: any = null;
-  let adbSocket: net.Socket | null = null;
-  let reconnectTimer: NodeJS.Timeout | null = null;
+  // Active connected client platforms (Desktop JVM, Android USB, Emulator, iOS, etc.)
+  const connectedClients = new Map<string, ConnectedClientSession>();
+  let clientIdCounter = 1;
 
-  function connectToAdbSocket(targetPort: number = adbManager.getConfig().port) {
-    if (adbSocket) {
-      adbSocket.destroy();
-      adbSocket = null;
-    }
-
-    adbSocket = net.createConnection({ host: ADB_HOST, port: targetPort }, () => {
-      isAdbConnected = true;
-      console.log(`[BlameBackend Server] Connected to Android TCP socket at ${ADB_HOST}:${targetPort}`);
-      broadcastSse({ type: 'STATUS', connected: true, port: targetPort, device: detectedDevice });
-    });
-
-    let buffer = '';
-
-    adbSocket.on('data', (chunk) => {
-      buffer += chunk.toString('utf-8');
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const envelope = JSON.parse(line);
-          if (envelope.type === 'HELLO') {
-            detectedDevice = JSON.parse(envelope.payloadJson);
-            broadcastSse({ type: 'DEVICE_INFO', device: detectedDevice });
-          } else if (envelope.type === 'NETWORK_EVENT') {
-            const event = JSON.parse(envelope.payloadJson);
-            broadcastSse({ type: 'NETWORK_EVENT', event });
-          }
-        } catch (e: any) {
-          console.error('[BlameBackend Server] Failed to parse wire message:', e.message);
-        }
-      }
-    });
-
-    adbSocket.on('error', (err: any) => {
-      isAdbConnected = false;
-      // Normal when no device is forwarded or device is sleeping; silence spam
-    });
-
-    adbSocket.on('close', () => {
-      isAdbConnected = false;
-      broadcastSse({ type: 'STATUS', connected: false, port: targetPort });
-      // Schedule background reconnect attempt
-      if (!reconnectTimer) {
-        reconnectTimer = setTimeout(() => {
-          reconnectTimer = null;
-          connectToAdbSocket(targetPort);
-        }, 3000);
-      }
-    });
-  }
-
-  // Initial attempt to connect to ADB port
-  connectToAdbSocket();
+  let tcpServer: net.Server | null = null;
+  let isTcpServerListening = false;
+  let tcpServerError: string | null = null;
 
   function broadcastSse(data: any) {
     const payload = `data: ${JSON.stringify(data)}\n\n`;
@@ -92,35 +46,222 @@ async function startServer() {
     }
   }
 
+  function getActiveDevicesList() {
+    return Array.from(connectedClients.values()).map(client => ({
+      id: client.id,
+      remoteAddress: client.remoteAddress,
+      remotePort: client.remotePort,
+      connectedAt: client.connectedAt,
+      port: adbManager.getConfig().port,
+      ...(client.deviceInfo || {
+        deviceName: `Client ${client.id}`,
+        osVersion: 'Unknown OS',
+        appName: 'Unknown App',
+        appVersion: '1.0.0'
+      })
+    }));
+  }
+
+  function getPrimaryDevice() {
+    const list = getActiveDevicesList();
+    return list.length > 0 ? list[list.length - 1] : null;
+  }
+
+  // --- TCP Server Socket for receiving incoming connections from Android/Desktop clients ---
+  function startOrRestartTcpServer(targetPort: number = adbManager.getConfig().port) {
+    if (tcpServer) {
+      try {
+        tcpServer.close();
+      } catch (err: any) {
+        console.warn('[BlameBackend Server] Error closing previous TCP server:', err.message);
+      }
+      tcpServer = null;
+    }
+
+    tcpServer = net.createServer((socket) => {
+      const clientId = `client_${clientIdCounter++}_${socket.remotePort}`;
+      const remoteAddress = socket.remoteAddress || '127.0.0.1';
+      const remotePort = socket.remotePort || 0;
+
+      socket.setNoDelay(true);
+      socket.setKeepAlive(true, 5000);
+
+      const session: ConnectedClientSession = {
+        id: clientId,
+        socket,
+        remoteAddress,
+        remotePort,
+        connectedAt: Date.now(),
+        deviceInfo: null
+      };
+
+      connectedClients.set(clientId, session);
+      console.log(`[BlameBackend Server] Client connected from ${remoteAddress}:${remotePort} [ID: ${clientId}] (Total clients: ${connectedClients.size})`);
+
+      // Notify web clients that a new platform connected
+      broadcastSse({
+        type: 'STATUS',
+        connected: true,
+        port: targetPort,
+        activeClientsCount: connectedClients.size,
+        devices: getActiveDevicesList(),
+        device: getPrimaryDevice()
+      });
+
+      let buffer = '';
+
+      socket.on('data', (chunk) => {
+        buffer += chunk.toString('utf-8');
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete fragment
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const envelope = JSON.parse(line);
+
+            if (envelope.type === 'HELLO') {
+              const helloData = JSON.parse(envelope.payloadJson);
+              session.deviceInfo = {
+                ...helloData,
+                id: clientId,
+                port: targetPort,
+                connectedAt: session.connectedAt
+              };
+              console.log(`[BlameBackend Server] Handshake from ${helloData.deviceName || 'Device'} (${helloData.appName || 'App'}) [${clientId}]`);
+
+              broadcastSse({
+                type: 'DEVICE_INFO',
+                device: session.deviceInfo,
+                devices: getActiveDevicesList()
+              });
+              broadcastSse({
+                type: 'STATUS',
+                connected: true,
+                port: targetPort,
+                activeClientsCount: connectedClients.size,
+                devices: getActiveDevicesList(),
+                device: session.deviceInfo
+              });
+            } else if (envelope.type === 'NETWORK_EVENT') {
+              const event = JSON.parse(envelope.payloadJson);
+              // Tag event with client and device context
+              event.clientId = clientId;
+              event.deviceName = session.deviceInfo?.deviceName || clientId;
+
+              broadcastSse({
+                type: 'NETWORK_EVENT',
+                event,
+                clientId,
+                device: session.deviceInfo
+              });
+            } else if (envelope.type === 'PING') {
+              // Bidirectional PONG reply
+              socket.write(JSON.stringify({
+                type: 'PONG',
+                version: 1,
+                timestamp: Date.now(),
+                payloadJson: '{}'
+              }) + '\n');
+            }
+          } catch (e: any) {
+            console.error(`[BlameBackend Server] Failed to parse message from ${clientId}:`, e.message);
+          }
+        }
+      });
+
+      socket.on('error', (err: any) => {
+        console.warn(`[BlameBackend Server] Socket error on ${clientId}:`, err.message);
+      });
+
+      socket.on('close', () => {
+        console.log(`[BlameBackend Server] Client disconnected: ${clientId} (Remaining: ${connectedClients.size - 1})`);
+        connectedClients.delete(clientId);
+
+        broadcastSse({
+          type: 'CLIENT_DISCONNECTED',
+          clientId,
+          activeClientsCount: connectedClients.size,
+          devices: getActiveDevicesList()
+        });
+
+        if (connectedClients.size === 0) {
+          broadcastSse({
+            type: 'STATUS',
+            connected: false,
+            port: targetPort,
+            activeClientsCount: 0,
+            devices: [],
+            device: null
+          });
+        }
+      });
+    });
+
+    tcpServer.on('error', (err: any) => {
+      isTcpServerListening = false;
+      tcpServerError = err.message;
+      console.error(`[BlameBackend Server] TCP Server socket error on port ${targetPort}:`, err.message);
+      broadcastSse({
+        type: 'SERVER_ERROR',
+        error: err.message,
+        port: targetPort
+      });
+    });
+
+    tcpServer.listen(targetPort, '0.0.0.0', () => {
+      isTcpServerListening = true;
+      tcpServerError = null;
+      console.log(`[BlameBackend Server] TCP Server Socket listening on 0.0.0.0:${targetPort} for incoming client connections (Android & Desktop)`);
+    });
+  }
+
+  // Start the TCP server socket listener on configured port
+  startOrRestartTcpServer();
+
   // --- ADB Management REST Endpoints ---
 
-  // Get current ADB status, config, and forwards
+  // Get current status, config, active client platforms, and adb rules
   app.get('/api/adb/status', async (req: Request, res: Response) => {
     const config = adbManager.getConfig();
     const adbCheck = await adbManager.checkAdb();
+    const reverses = await adbManager.listReverses();
     const forwards = await adbManager.listForwards();
 
     res.json({
-      connected: isAdbConnected,
+      connected: connectedClients.size > 0,
+      clientCount: connectedClients.size,
+      tcpServerListening: isTcpServerListening,
+      tcpServerError,
       port: config.port,
-      host: ADB_HOST,
-      device: detectedDevice,
+      host: HOST,
+      device: getPrimaryDevice(),
+      devices: getActiveDevicesList(),
       adbAvailable: adbCheck.ok,
       adbVersion: adbCheck.version,
       adbError: adbCheck.error,
       config,
+      reverses,
       forwards
     });
   });
 
-  // Update ADB Config (custom path, default port, device serial)
+  // Update Config (custom path, default port, device serial)
   app.post('/api/adb/config', (req: Request, res: Response) => {
     const { adbPath, port, selectedSerial } = req.body;
+    const currentConfig = adbManager.getConfig();
+    const newPort = port ? Number(port) : currentConfig.port;
+
     adbManager.setConfig({
       ...(adbPath ? { adbPath } : {}),
-      ...(port ? { port: Number(port) } : {}),
+      ...(port ? { port: newPort } : {}),
       ...(selectedSerial !== undefined ? { selectedSerial } : {})
     });
+
+    if (port && newPort !== currentConfig.port) {
+      startOrRestartTcpServer(newPort);
+    }
+
     res.json({ success: true, config: adbManager.getConfig() });
   });
 
@@ -146,7 +287,35 @@ async function startServer() {
     }
   });
 
-  // Perform `adb forward tcp:<port> tcp:<port>` and reconnect socket
+  // Perform `adb reverse tcp:<port> tcp:<port>` so Android routes to host TCP server
+  app.post('/api/adb/reverse', async (req: Request, res: Response) => {
+    const port = Number(req.body.port) || adbManager.getConfig().port;
+    const serial = req.body.serial || adbManager.getConfig().selectedSerial;
+    if (serial !== undefined) {
+      adbManager.setConfig({ selectedSerial: serial });
+    }
+
+    try {
+      const result = await adbManager.reversePort(port, serial);
+      res.json({ ...result, port, serial });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Remove `adb reverse --remove tcp:<port>`
+  app.post('/api/adb/remove-reverse', async (req: Request, res: Response) => {
+    const port = Number(req.body.port) || adbManager.getConfig().port;
+    const serial = req.body.serial || adbManager.getConfig().selectedSerial;
+    try {
+      const result = await adbManager.removeReverse(port, serial);
+      res.json({ ...result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Backwards-compatible `adb forward` endpoint
   app.post('/api/adb/forward', async (req: Request, res: Response) => {
     const port = Number(req.body.port) || adbManager.getConfig().port;
     const serial = req.body.serial || adbManager.getConfig().selectedSerial;
@@ -156,9 +325,18 @@ async function startServer() {
 
     try {
       const result = await adbManager.forwardPort(port, serial);
-      // Immediately connect TCP socket to the forwarded port
-      connectToAdbSocket(port);
       res.json({ ...result, port, serial });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Remove `adb forward --remove tcp:<port>`
+  app.post('/api/adb/remove-forward', async (req: Request, res: Response) => {
+    const port = Number(req.body.port) || adbManager.getConfig().port;
+    try {
+      const result = await adbManager.removeForward(port);
+      res.json({ ...result });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -175,37 +353,31 @@ async function startServer() {
     }
   });
 
-  // Remove `adb forward --remove tcp:<port>`
-  app.post('/api/adb/remove-forward', async (req: Request, res: Response) => {
-    const port = Number(req.body.port) || adbManager.getConfig().port;
-    try {
-      const result = await adbManager.removeForward(port);
-      if (adbSocket) {
-        adbSocket.destroy();
-        adbSocket = null;
-      }
-      isAdbConnected = false;
-      broadcastSse({ type: 'STATUS', connected: false });
-      res.json({ ...result });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // Refresh TCP socket connection
+  // Restart/rebind TCP server socket
   app.post('/api/adb/reconnect', (req: Request, res: Response) => {
     const port = Number(req.body.port) || adbManager.getConfig().port;
-    connectToAdbSocket(port);
-    res.json({ success: true, message: `Reconnecting to ${ADB_HOST}:${port}...` });
+    startOrRestartTcpServer(port);
+    res.json({ success: true, message: `TCP server restarted on port ${port}` });
+  });
+
+  // List all currently connected client platforms
+  app.get('/api/clients', (req: Request, res: Response) => {
+    res.json({
+      success: true,
+      count: connectedClients.size,
+      clients: getActiveDevicesList()
+    });
   });
 
   // Compatibility endpoint
   app.get('/api/adb-status', (req: Request, res: Response) => {
     res.json({
-      connected: isAdbConnected,
+      connected: connectedClients.size > 0,
+      clientCount: connectedClients.size,
       port: adbManager.getConfig().port,
-      host: ADB_HOST,
-      device: detectedDevice
+      host: HOST,
+      device: getPrimaryDevice(),
+      devices: getActiveDevicesList()
     });
   });
 
@@ -217,8 +389,15 @@ async function startServer() {
     res.flushHeaders();
 
     const config = adbManager.getConfig();
-    // Send initial status
-    res.write(`data: ${JSON.stringify({ type: 'STATUS', connected: isAdbConnected, port: config.port, device: detectedDevice })}\n\n`);
+    // Send initial status with full device list
+    res.write(`data: ${JSON.stringify({
+      type: 'STATUS',
+      connected: connectedClients.size > 0,
+      port: config.port,
+      activeClientsCount: connectedClients.size,
+      devices: getActiveDevicesList(),
+      device: getPrimaryDevice()
+    })}\n\n`);
 
     sseClients.push(res);
 
@@ -261,7 +440,7 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     const config = adbManager.getConfig();
     console.log(`[BlameBackend Server] Running on http://localhost:${PORT}`);
-    console.log(`[BlameBackend Server] Raw TCP socket listener targeting 127.0.0.1:${config.port}`);
+    console.log(`[BlameBackend Server] Hosting TCP Server Socket on 0.0.0.0:${config.port} (accepting Android & Desktop clients)`);
   });
 }
 

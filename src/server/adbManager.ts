@@ -190,6 +190,48 @@ export class AdbManager {
   }
 
   /**
+   * Reverses device TCP port to local host TCP port:
+   * `adb reverse tcp:<port> tcp:<port>`
+   * Allows apps inside Android device/emulator to reach host's TCP server at 127.0.0.1:<port>
+   */
+  public async reversePort(port: number = this.config.port, serial?: string): Promise<{ success: boolean; output: string }> {
+    try {
+      const { stdout } = await this.executeAdb(['reverse', `tcp:${port}`, `tcp:${port}`], serial);
+      this.config.port = port;
+      if (serial) {
+        this.config.selectedSerial = serial;
+      }
+      return { success: true, output: stdout || `Reversed device tcp:${port} -> host tcp:${port} on device ${serial || 'default'}` };
+    } catch (err: any) {
+      throw new Error(err.stderr || err.error?.message || 'Failed to reverse port');
+    }
+  }
+
+  /**
+   * Lists active port reverse rules (`adb reverse --list`)
+   */
+  public async listReverses(): Promise<string[]> {
+    try {
+      const { stdout } = await this.executeAdb(['reverse', '--list']);
+      return stdout.split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Removes reverse rule (`adb reverse --remove tcp:<port>`)
+   */
+  public async removeReverse(port: number = this.config.port, serial?: string): Promise<{ success: boolean; output: string }> {
+    try {
+      const { stdout } = await this.executeAdb(['reverse', '--remove', `tcp:${port}`], serial);
+      return { success: true, output: stdout || `Removed reverse rule for tcp:${port}` };
+    } catch (err: any) {
+      throw new Error(err.stderr || err.error?.message || 'Failed to remove reverse rule');
+    }
+  }
+
+  /**
    * Forwards local TCP port to device TCP port
    */
   public async forwardPort(port: number = this.config.port, serial?: string): Promise<{ success: boolean; output: string }> {
