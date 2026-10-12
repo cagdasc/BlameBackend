@@ -17,6 +17,8 @@ export function parseFilterQuery(raw: string): FilterCriteria {
       criteria.method = token.slice(7).toUpperCase();
     } else if (token.startsWith('status:')) {
       criteria.status = token.slice(7).toLowerCase();
+    } else if (token.startsWith('device:')) {
+      criteria.device = token.slice(7).toLowerCase();
     } else if (token.startsWith('search:')) {
       generalTerms.push(token.slice(7));
     } else {
@@ -44,6 +46,17 @@ export function matchesFilter(event: NetworkEvent, criteria: FilterCriteria): bo
   // Filter by method
   if (criteria.method) {
     if (event.request.method !== criteria.method) {
+      return false;
+    }
+  }
+
+  // Filter by source device / platform
+  if (criteria.device) {
+    const dev = criteria.device;
+    const matchName = event.deviceName?.toLowerCase().includes(dev);
+    const matchId = event.clientId?.toLowerCase().includes(dev);
+    const matchApp = event.appName?.toLowerCase().includes(dev);
+    if (!matchName && !matchId && !matchApp) {
       return false;
     }
   }

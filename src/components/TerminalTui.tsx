@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   NetworkEvent,
   HttpMethod,
-  FilterCriteria
+  FilterCriteria,
+  DeviceInfo
 } from '../types/inspector';
 import { parseFilterQuery, matchesFilter } from '../engine/filterEngine';
 import { formatBytes } from '../engine/payload';
@@ -25,13 +26,21 @@ interface TerminalTuiProps {
   selectedId: string | null;
   onSelectEvent: (id: string) => void;
   onClear: () => void;
+  connectedDevices?: DeviceInfo[];
+  selectedDeviceId?: string;
+  onSelectDeviceFilter?: (deviceId: string) => void;
+  totalEventCount?: number;
 }
 
 export const TerminalTui: React.FC<TerminalTuiProps> = ({
   events,
   selectedId,
   onSelectEvent,
-  onClear
+  onClear,
+  connectedDevices = [],
+  selectedDeviceId = 'all',
+  onSelectDeviceFilter,
+  totalEventCount
 }) => {
   const [filterText, setFilterText] = useState('');
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'headers' | 'body' | 'timing'>('overview');
@@ -47,6 +56,8 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
 
   // Determine current selected event
   const selectedEvent = events.find(e => e.id === selectedId) || filteredEvents[0] || null;
+
+  const currentFilteredDevice = connectedDevices.find(d => d.id === selectedDeviceId);
 
   // Keyboard navigation handler
   useEffect(() => {
@@ -218,6 +229,23 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
           </span>
         </div>
 
+        {/* Active Device Filter Chip if specific device selected */}
+        {selectedDeviceId && selectedDeviceId !== 'all' && currentFilteredDevice && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-cyan-950/70 border border-cyan-800 rounded text-cyan-300 text-xs font-mono shrink-0">
+            <span className="text-neutral-400 text-[11px]">Device:</span>
+            <span className="font-semibold">{currentFilteredDevice.deviceName}</span>
+            {onSelectDeviceFilter && (
+              <button
+                onClick={() => onSelectDeviceFilter('all')}
+                title="Show all devices"
+                className="ml-1 text-cyan-400 hover:text-white"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Filter input */}
         <div className="flex items-center gap-2 flex-1 max-w-md">
           <div className="relative w-full">
@@ -369,6 +397,16 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                     <span className="text-[10px] text-neutral-500 shrink-0">
                       {event.request.clientType}
                     </span>
+
+                    {/* Device source badge */}
+                    {event.deviceName && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-[#0c1018] text-cyan-300 border border-neutral-800 shrink-0 max-w-[85px] truncate hidden sm:inline-block"
+                        title={`Device: ${event.deviceName} (${event.appName || ''})`}
+                      >
+                        {event.deviceName}
+                      </span>
+                    )}
 
                     {/* Duration */}
                     <span className="w-14 text-right tabular-nums text-neutral-400 shrink-0 text-[11px]">
@@ -600,6 +638,19 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                             {selectedEvent.request.clientType}
                           </span>
                         </div>
+                        {selectedEvent.deviceName && (
+                          <div className="grid grid-cols-4 gap-2">
+                            <span className="text-neutral-500">Source Device:</span>
+                            <span className="col-span-3 text-cyan-300 font-semibold flex items-center gap-2">
+                              <span>{selectedEvent.deviceName}</span>
+                              {selectedEvent.appName && (
+                                <span className="text-[10px] text-neutral-400 font-mono px-1.5 py-0.2 bg-neutral-800 rounded">
+                                  {selectedEvent.appName} {selectedEvent.osVersion ? `· ${selectedEvent.osVersion}` : ''}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        )}
                         {selectedEvent.response && (
                           <div className="grid grid-cols-4 gap-2">
                             <span className="text-neutral-500">Response Size:</span>

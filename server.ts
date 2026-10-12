@@ -148,6 +148,8 @@ async function startServer() {
               // Tag event with client and device context
               event.clientId = clientId;
               event.deviceName = session.deviceInfo?.deviceName || clientId;
+              event.appName = session.deviceInfo?.appName || '';
+              event.osVersion = session.deviceInfo?.osVersion || '';
 
               broadcastSse({
                 type: 'NETWORK_EVENT',

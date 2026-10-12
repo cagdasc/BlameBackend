@@ -21,6 +21,7 @@ interface DeviceManagerProps {
   currentDeviceInfo: DeviceInfo;
   isSocketConnected: boolean;
   onRefreshSocket: () => void;
+  onSelectDeviceFilter?: (deviceId: string) => void;
 }
 
 interface DeviceItem {
@@ -69,7 +70,8 @@ interface AdbStatusResponse {
 export const DeviceManager: React.FC<DeviceManagerProps> = ({
   currentDeviceInfo,
   isSocketConnected,
-  onRefreshSocket
+  onRefreshSocket,
+  onSelectDeviceFilter
 }) => {
   const [adbPath, setAdbPath] = useState('adb');
   const [port, setPort] = useState(10245);
@@ -499,9 +501,20 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-mono">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Live Stream Active</span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-mono">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Live Stream Active</span>
+                      </div>
+
+                      {onSelectDeviceFilter && (
+                        <button
+                          onClick={() => onSelectDeviceFilter(client.id)}
+                          className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-cyan-300 rounded border border-neutral-700 text-[11px] font-medium transition-colors"
+                        >
+                          Filter Traffic in TUI
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

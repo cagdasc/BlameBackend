@@ -58,6 +58,8 @@ export interface NetworkEvent {
   status: 'pending' | 'completed' | 'error';
   clientId?: string;
   deviceName?: string;
+  appName?: string;
+  osVersion?: string;
 }
 
 export type WireMessageType =
@@ -94,5 +96,6 @@ export interface FilterCriteria {
   host?: string;
   method?: string;
   status?: string;
+  device?: string;
   search?: string;
 }
