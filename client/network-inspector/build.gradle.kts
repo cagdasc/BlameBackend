@@ -16,13 +16,26 @@ kotlin {
     }
 
     jvm()
+    linuxX64()
+    iosArm64()
+    iosSimulatorArm64()
+    iosX64()
 
     sourceSets {
         val commonMain = getByName("commonMain")
+        val nativeMain = create("nativeMain") {
+            dependsOn(commonMain)
+        }
+        getByName("linuxX64Main").dependsOn(nativeMain)
+        getByName("iosArm64Main").dependsOn(nativeMain)
+        getByName("iosSimulatorArm64Main").dependsOn(nativeMain)
+        getByName("iosX64Main").dependsOn(nativeMain)
+
         val jvmAndAndroidMain = create("jvmAndAndroidMain") {
             dependsOn(commonMain)
             dependencies {
                 api(libs.okhttp)
+                implementation(libs.logger)
             }
         }
 
@@ -38,7 +51,7 @@ kotlin {
             api(libs.ktor.client.core)
             api(libs.kotlinx.serialization.json)
             api(libs.kotlinx.coroutines.core)
-            implementation("io.github.shivathapaa:logger:2.0.0")
+            implementation(libs.ktor.network)
         }
 
         getByName("androidMain").dependencies {

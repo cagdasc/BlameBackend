@@ -1,100 +1,112 @@
 package com.cacaosd.networkinspector.transport
 
+import com.cacaosd.networkinspector.core.logInspectorError
 import com.cacaosd.networkinspector.protocol.HelloPayload
 import com.cacaosd.networkinspector.protocol.MessageType
 import com.cacaosd.networkinspector.protocol.WireEnvelope
+import io.ktor.network.selector.SelectorManager
+import io.ktor.network.sockets.InetSocketAddress
+import io.ktor.network.sockets.Socket
+import io.ktor.network.sockets.aSocket
+import io.ktor.network.sockets.openWriteChannel
+import io.ktor.utils.io.writeStringUtf8
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import java.io.BufferedWriter
-import java.io.OutputStreamWriter
-import java.net.InetSocketAddress
-import java.net.Socket
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Outgoing TCP client. Connects to BlameBackend server on 127.0.0.1:port.
- * Automatically reconnects when BlameBackend starts up.
+ * Outgoing TCP client. Connects to the inspector server and reconnects when it becomes available.
  */
 class InspectorClient(
     private val host: String = "127.0.0.1",
     private val port: Int,
     private val helloPayload: HelloPayload,
-    private val maxQueueSize: Int = 500
+    maxQueueSize: Int = 500
 ) {
-    private val isRunning = AtomicBoolean(false)
-    private val queue = LinkedBlockingQueue<String>(maxQueueSize)
-    private var workerThread: Thread? = null
+    private val isRunning = MutableStateFlow(false)
+    private val activeSocket = MutableStateFlow<Socket?>(null)
+    private val queue = Channel<String>(maxQueueSize, BufferOverflow.DROP_OLDEST)
+    private var scope: CoroutineScope? = null
+    private var workerJob: Job? = null
 
     fun start() {
-        if (isRunning.compareAndSet(false, true)) {
-            workerThread = thread(name = "inspector-client-worker", isDaemon = true) {
-                runLoop()
-            }
+        if (isRunning.compareAndSet(expect = false, update = true)) {
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            workerJob = scope?.launch { runLoop() }
         }
     }
 
-    private fun runLoop() {
-        while (isRunning.get()) {
-            var socket: Socket? = null
-            var writer: BufferedWriter? = null
-
-            try {
-                // 1. Attempt connection to host server
-                socket = Socket()
-                socket.tcpNoDelay = true
-                socket.connect(InetSocketAddress(host, port), 2000)
-
-                writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8))
-
-                // 2. Send HELLO handshake
-                val helloEnvelope = WireEnvelope(
-                    type = MessageType.HELLO,
-                    timestamp = System.currentTimeMillis(),
-                    payloadJson = Json.encodeToString(helloPayload)
-                )
-                writer.write(Json.encodeToString(helloEnvelope))
-                writer.newLine()
-                writer.flush()
-
-                // 3. Continuously send queued events
-                while (isRunning.get()) {
-                    val message = queue.take() // Blocks until an event arrives
-                    writer.write(message)
-                    writer.newLine()
-                    writer.flush()
-                }
-
-            } catch (e: Exception) {
-                // Server is not running or disconnected; sleep 3s before retry
-                runCatching { writer?.close() }
-                runCatching { socket?.close() }
-
+    private suspend fun runLoop() {
+        val selectorManager = SelectorManager(Dispatchers.Default)
+        try {
+            while (isRunning.value) {
+                var socket: Socket? = null
                 try {
-                    Thread.sleep(3000)
-                } catch (_: InterruptedException) {
-                    break
+                    socket = aSocket(selectorManager)
+                        .tcp()
+                        .connect(InetSocketAddress(host, port))
+                    activeSocket.value = socket
+
+                    val output = socket.openWriteChannel(autoFlush = false)
+                    val helloEnvelope = WireEnvelope(
+                        type = MessageType.HELLO,
+                        timestamp = Clock.System.now().toEpochMilliseconds(),
+                        payloadJson = Json.encodeToString(helloPayload)
+                    )
+                    output.writeStringUtf8("${Json.encodeToString(helloEnvelope)}\n")
+                    output.flush()
+
+                    while (isRunning.value) {
+                        output.writeStringUtf8("${queue.receive()}\n")
+                        output.flush()
+                    }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    if (isRunning.value) {
+                        logInspectorError("Inspector connection failed; retrying in 3 seconds", error)
+                        delay(3000.milliseconds)
+                    }
+                } finally {
+                    if (socket != null) {
+                        activeSocket.compareAndSet(socket, null)
+                        socket.close()
+                    }
                 }
             }
+        } finally {
+            selectorManager.close()
         }
     }
 
     /**
-     * Non-blocking send: if queue is full (e.g. inspector not running), drop oldest.
+     * Non-blocking send: if the queue is full, the oldest event is discarded.
      */
     fun sendEvent(jsonLine: String) {
-        if (!isRunning.get()) return
-        if (queue.remainingCapacity() == 0) {
-            queue.poll() // Drop oldest to prevent memory leaks
+        if (isRunning.value) {
+            queue.trySend(jsonLine)
         }
-        queue.offer(jsonLine)
     }
 
     fun stop() {
-        if (isRunning.compareAndSet(true, false)) {
-            workerThread?.interrupt()
-            workerThread = null
-            queue.clear()
+        if (isRunning.compareAndSet(expect = true, update = false)) {
+            activeSocket.value?.close()
+            workerJob?.cancel()
+            scope?.cancel()
+            workerJob = null
+            scope = null
+            while (queue.tryReceive().isSuccess) Unit
         }
     }
 }

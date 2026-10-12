@@ -2,28 +2,29 @@ package com.cacaosd.networkinspector.transport
 
 import com.cacaosd.networkinspector.core.HeaderRedactor
 import com.cacaosd.networkinspector.core.InspectorEventBus
+import com.cacaosd.networkinspector.core.logInspectorError
 import com.cacaosd.networkinspector.protocol.DEFAULT_INSPECTOR_PORT
 import com.cacaosd.networkinspector.protocol.HelloPayload
 import com.cacaosd.networkinspector.protocol.MessageType
 import com.cacaosd.networkinspector.protocol.WireEnvelope
-import dev.shivathapaa.logger.api.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Clock
 
 /**
- * Android Network Inspector Facade.
+ * Network Inspector facade.
  *
  * Captures, transports, and inspects HTTP traffic without affecting application semantics.
  * Completely inert/no-op in release builds or when the desktop tool is disconnected.
  */
 object NetworkInspector {
-    private val isStarted = AtomicBoolean(false)
+    private val isStarted = MutableStateFlow(false)
     private var config: NetworkInspectorConfig = NetworkInspectorConfig()
     private var scope: CoroutineScope? = null
     private var client: InspectorClient? = null
@@ -32,14 +33,14 @@ object NetworkInspector {
         helloPayload: HelloPayload,
         configuration: NetworkInspectorConfig = NetworkInspectorConfig()
     ) {
-        if (isStarted.compareAndSet(false, true)) {
+        if (isStarted.compareAndSet(expect = false, update = true)) {
             this.config = configuration
             InspectorEventBus.configure(
                 configuration.redactor,
                 configuration.maxBodySizeBytes,
                 configuration.maxQueueSize,
             )
-            scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+            scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
             startInternal(helloPayload)
         }
     }
@@ -58,19 +59,19 @@ object NetworkInspector {
                     val json = Json.encodeToString(event)
                     val envelope = WireEnvelope(
                         type = MessageType.NETWORK_EVENT,
-                        timestamp = System.currentTimeMillis(),
+                        timestamp = Clock.System.now().toEpochMilliseconds(),
                         payloadJson = json
                     )
                     client?.sendEvent(Json.encodeToString(envelope))
                 } catch (error: Exception) {
-                    Log.e("Error dispatching event", throwable = error)
+                    logInspectorError("Error dispatching inspector event", error)
                 }
             }
         }
     }
 
     fun stop() {
-        if (isStarted.compareAndSet(true, false)) {
+        if (isStarted.compareAndSet(expect = true, update = false)) {
             client?.stop()
             client = null
             scope?.cancel()
