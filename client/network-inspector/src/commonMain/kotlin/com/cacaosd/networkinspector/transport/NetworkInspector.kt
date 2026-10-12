@@ -4,7 +4,6 @@ import com.cacaosd.networkinspector.core.HeaderRedactor
 import com.cacaosd.networkinspector.core.InspectorEventBus
 import com.cacaosd.networkinspector.protocol.DEFAULT_INSPECTOR_PORT
 import com.cacaosd.networkinspector.protocol.HelloPayload
-import com.cacaosd.networkinspector.protocol.HelloPayloadProvider
 import com.cacaosd.networkinspector.protocol.MessageType
 import com.cacaosd.networkinspector.protocol.WireEnvelope
 import dev.shivathapaa.logger.api.Log
@@ -24,14 +23,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Completely inert/no-op in release builds or when the desktop tool is disconnected.
  */
 object NetworkInspector {
-    private const val TAG = "NetworkInspector"
     private val isStarted = AtomicBoolean(false)
     private var config: NetworkInspectorConfig = NetworkInspectorConfig()
-    private var server: InspectorServer? = null
     private var scope: CoroutineScope? = null
+    private var client: InspectorClient? = null
 
     fun install(
-        payloadProvider: HelloPayloadProvider,
+        helloPayload: HelloPayload,
         configuration: NetworkInspectorConfig = NetworkInspectorConfig()
     ) {
         if (isStarted.compareAndSet(false, true)) {
@@ -42,18 +40,16 @@ object NetworkInspector {
                 configuration.maxQueueSize,
             )
             scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-            startInternal(payloadProvider.getHelloPayload())
+            startInternal(helloPayload)
         }
     }
 
     private fun startInternal(helloPayload: HelloPayload) {
-        server = InspectorServer(
+        client = InspectorClient(
+            host = "127.0.0.1",
             port = config.port,
             helloPayload = helloPayload,
-            onClientConnected = { client ->
-                Log.i("Desktop inspector connected: ${client.remoteSocketAddress}")
-            },
-            onError = { error -> Log.e("Inspector server error", throwable = error) }
+            maxQueueSize = config.maxQueueSize
         ).apply { start() }
 
         scope?.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -65,24 +61,18 @@ object NetworkInspector {
                         timestamp = System.currentTimeMillis(),
                         payloadJson = json
                     )
-                    server?.broadcast(Json.encodeToString(envelope))
+                    client?.sendEvent(Json.encodeToString(envelope))
                 } catch (error: Exception) {
-                    Log.e("Error processing event", throwable = error)
+                    Log.e("Error dispatching event", throwable = error)
                 }
             }
         }
-
-        Log.i("NetworkInspector active on 127.0.0.1:${config.port}. Forward via 'adb forward tcp:${config.port} tcp:${config.port}'")
     }
 
-    /**
-     * Non-blocking event dispatch.
-     * Uses backpressure drop-oldest policy so network threads are never blocked.
-     */
     fun stop() {
         if (isStarted.compareAndSet(true, false)) {
-            server?.stop()
-            server = null
+            client?.stop()
+            client = null
             scope?.cancel()
             scope = null
         }

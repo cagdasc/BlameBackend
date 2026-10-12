@@ -37,7 +37,7 @@ val NetworkInspectorPlugin = createClientPlugin("NetworkInspector") {
         }
         val timestamp = Clock.System.now().toEpochMilliseconds()
         val url = request.url.build()
-        val requestBody = captureRequestBody(request.body)
+
         val headers = request.headers.entries().associate { (name, values) ->
             name to values.joinToString(", ")
         }
@@ -51,7 +51,6 @@ val NetworkInspectorPlugin = createClientPlugin("NetworkInspector") {
                 path = url.encodedPath,
                 protocol = "HTTP",
                 headers = InspectorEventBus.redactor.redact(headers),
-                body = requestBody,
                 clientType = "ktor",
             ),
             startTime = TimeSource.Monotonic.markNow(),
@@ -66,23 +65,22 @@ val NetworkInspectorPlugin = createClientPlugin("NetworkInspector") {
         )
     }
 
-    transformRequestBody { request, body, _ ->
-        val metadata = request.attributes.getOrNull(RequestMetadataKey)
-        if (metadata != null) {
-            val payload = captureRequestBody(
-                body = body,
-                contentType = request.headers[HttpHeaders.ContentType],
-            )
-            if (payload != null) {
-                metadata.request = metadata.request.copy(body = payload)
-                InspectorEventBus.dispatch(
-                    NetworkEventDto(
-                        id = metadata.request.id,
-                        timestamp = metadata.request.timestamp,
-                        request = metadata.request,
-                    )
+    transformRequestBody { request, content, _ ->
+        val metadata = request.attributes.getOrNull(RequestMetadataKey) ?: return@transformRequestBody null
+
+        val payload = captureRequestBody(
+            body = content,
+            contentType = request.headers[HttpHeaders.ContentType],
+        )
+        if (payload != null) {
+            metadata.request = metadata.request.copy(body = payload)
+            InspectorEventBus.dispatch(
+                NetworkEventDto(
+                    id = metadata.request.id,
+                    timestamp = metadata.request.timestamp,
+                    request = metadata.request,
                 )
-            }
+            )
         }
         null
     }
@@ -141,6 +139,7 @@ private fun captureRequestBody(
             bodyContentType = body.contentType?.toString() ?: bodyContentType
             body.bytes().copyOf()
         }
+
         is ByteArray -> body.copyOf()
         is String -> body.encodeToByteArray()
         else -> return null
