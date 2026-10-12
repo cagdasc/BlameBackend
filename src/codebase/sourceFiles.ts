@@ -18,7 +18,7 @@ export const SOURCE_FILES: SourceFile[] = [
 import kotlinx.serialization.Serializable
 
 /**
- * Protocol version to ensure backwards compatibility between Android SDK and Desktop CLI.
+ * Protocol version to ensure backwards compatibility between Kotlin Multiplatform SDK and Inspector.
  */
 const val PROTOCOL_VERSION = 1
 const val DEFAULT_INSPECTOR_PORT = 10245

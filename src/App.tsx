@@ -12,6 +12,7 @@ import { DeviceManager } from './components/DeviceManager';
 import { NetworkEvent, DeviceInfo } from './types/inspector';
 import { liveSocketClient } from './engine/liveSocketClient';
 import { simulator } from './engine/mockClient';
+import { apiUrl } from './engine/apiConfig';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'tui' | 'scenarios' | 'dispatcher' | 'devices'>('tui');
@@ -114,7 +115,7 @@ export default function App() {
       const newDev: DeviceInfo = {
         id: dev.id,
         deviceName: dev.deviceName || 'Connected Device',
-        osVersion: dev.osVersion || 'Android',
+        osVersion: dev.osVersion || 'Multiplatform',
         appName: dev.appName || 'com.cacaosd.blamebackend',
         appVersion: dev.appVersion || 'debug',
         connectedAt: dev.connectedAt || Date.now(),
@@ -178,7 +179,7 @@ export default function App() {
 
   const handleReconnectSocket = async () => {
     try {
-      await fetch('/api/adb/reconnect', { method: 'POST' });
+      await fetch(apiUrl('/api/adb/reconnect'), { method: 'POST' });
     } catch {
       // ignore
     }

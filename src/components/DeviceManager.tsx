@@ -16,6 +16,7 @@ import {
   Copy
 } from 'lucide-react';
 import { DeviceInfo } from '../types/inspector';
+import { apiUrl } from '../engine/apiConfig';
 
 interface DeviceManagerProps {
   currentDeviceInfo: DeviceInfo;
@@ -107,8 +108,8 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
       setIsLoading(true);
       try {
         const [statusRes, devicesRes] = await Promise.all([
-          fetch('/api/adb/status'),
-          fetch('/api/adb/devices')
+          fetch(apiUrl('/api/adb/status')),
+          fetch(apiUrl('/api/adb/devices'))
         ]);
 
         if (!isMounted) return;
@@ -170,7 +171,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const triggerPortReverse = async (serial: string, targetPort: number = port, isAuto: boolean = false) => {
     setIsAutoReversing(true);
     try {
-      const res = await fetch('/api/adb/reverse', {
+      const res = await fetch(apiUrl('/api/adb/reverse'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port: targetPort, serial })
@@ -190,7 +191,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
         onRefreshSocket();
 
         // Refresh status
-        const statusRes = await fetch('/api/adb/status');
+        const statusRes = await fetch(apiUrl('/api/adb/status'));
         if (statusRes.ok) {
           const statusData: AdbStatusResponse = await statusRes.json();
           setActiveReverses(statusData.reverses || []);
@@ -220,7 +221,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   // Helper function for fallback `adb forward`
   const triggerPortForward = async (serial: string, targetPort: number = port) => {
     try {
-      const res = await fetch('/api/adb/forward', {
+      const res = await fetch(apiUrl('/api/adb/forward'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port: targetPort, serial })
@@ -247,7 +248,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const handleRestartAdbServer = async () => {
     setIsRestartingServer(true);
     try {
-      const res = await fetch('/api/adb/restart-server', { method: 'POST' });
+      const res = await fetch(apiUrl('/api/adb/restart-server'), { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setCommandLog({
@@ -257,7 +258,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
         showSuccess('Restarted ADB server. Re-scanning devices...');
 
         // Re-query devices
-        const devRes = await fetch('/api/adb/devices');
+        const devRes = await fetch(apiUrl('/api/adb/devices'));
         if (devRes.ok) {
           const devData = await devRes.json();
           const devList: DeviceItem[] = devData.devices || [];
@@ -291,8 +292,8 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
     setIsLoading(true);
     try {
       const [statusRes, devicesRes] = await Promise.all([
-        fetch('/api/adb/status'),
-        fetch('/api/adb/devices')
+        fetch(apiUrl('/api/adb/status')),
+        fetch(apiUrl('/api/adb/devices'))
       ]);
 
       if (statusRes.ok) {
@@ -329,7 +330,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const handleAutoDetectAdb = async () => {
     setIsAutoDetecting(true);
     try {
-      const res = await fetch('/api/adb/detect-path', { method: 'POST' });
+      const res = await fetch(apiUrl('/api/adb/detect-path'), { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setAdbPath(data.path);
@@ -362,13 +363,13 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const handleSaveAndTestAdb = async () => {
     setIsTestingAdb(true);
     try {
-      await fetch('/api/adb/config', {
+      await fetch(apiUrl('/api/adb/config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adbPath, port, selectedSerial })
       });
 
-      const res = await fetch('/api/adb/status');
+      const res = await fetch(apiUrl('/api/adb/status'));
       const data: AdbStatusResponse = await res.json();
       setAdbAvailable(data.adbAvailable);
       setAdbVersion(data.adbVersion || '');
@@ -417,7 +418,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
               <span>Devices &amp; Server Socket</span>
             </h2>
             <p className="text-neutral-400 text-xs mt-1">
-              Host runs TCP Server Socket on port {port}. Android clients connect via <code className="text-cyan-300 font-mono">adb reverse</code>; Desktop connects directly.
+              Host runs TCP Server Socket on port {port}. Android clients connect via <code className="text-cyan-300 font-mono">adb reverse</code>; iOS Simulators &amp; Desktop connect directly.
             </p>
           </div>
 
@@ -464,7 +465,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           </div>
 
           <p className="text-xs text-neutral-400 leading-relaxed">
-            The BlameBackend host server listens on TCP port <code className="text-cyan-300 font-mono">{port}</code>. Both Compose Desktop and Android applications connect as clients simultaneously without port conflicts.
+            The BlameBackend host server listens on TCP port <code className="text-cyan-300 font-mono">{port}</code>. Kotlin Multiplatform applications (Android, iOS, Desktop, Server) connect as clients simultaneously without port conflicts.
           </p>
 
           {/* Connected Client Platforms List */}
@@ -529,7 +530,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
             <div className="flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-cyan-400" />
               <h3 className="text-sm font-semibold text-neutral-200">
-                ADB Attached Devices ({devices.length})
+                Android ADB Devices (USB / Emulator: {devices.length})
               </h3>
             </div>
 
@@ -835,21 +836,33 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           </div>
         )}
 
-        {/* 5. Android Client Reference */}
+        {/* 5. Kotlin Multiplatform Client Reference */}
         <div className="p-4 bg-[#0e121a] rounded border border-neutral-800 space-y-3">
           <div className="flex items-center gap-2 text-neutral-200 font-semibold text-xs">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Android Setup (<code>/client</code>)</span>
+            <span>Kotlin Multiplatform Setup (<code>/client/network-inspector</code>)</span>
           </div>
           <p className="text-[11px] text-neutral-400 leading-relaxed">
-            Your client library in <code className="text-cyan-300">/client/core</code> and sample app in{' '}
-            <code className="text-cyan-300">/client/app</code> are already hooked up:
+            BlameBackend is built for <strong className="text-neutral-200">Kotlin Multiplatform (KMP)</strong>. The multiplatform library in{' '}
+            <code className="text-cyan-300">/client/network-inspector</code> supports Android, iOS, Compose Desktop, JVM, and Linux:
           </p>
-          <div className="bg-[#07090d] p-3 rounded border border-neutral-800/80 font-mono text-[11px] text-neutral-300 space-y-1">
-            <div><span className="text-neutral-500">// Application onCreate:</span></div>
-            <div>NetworkInspector.install(this)</div>
-            <div className="pt-1"><span className="text-neutral-500">// OkHttpClient builder:</span></div>
-            <div>OkHttpClient.Builder().addInterceptor(NetworkInspectorInterceptor()).build()</div>
+          <div className="bg-[#07090d] p-3 rounded border border-neutral-800/80 font-mono text-[11px] text-neutral-300 space-y-2">
+            <div>
+              <div className="text-cyan-400 font-semibold">// 1. commonMain (Ktor Client - Android, iOS, Desktop, Linux):</div>
+              <div className="text-neutral-300">val client = HttpClient &#123;</div>
+              <div className="pl-4 text-neutral-300">install(NetworkInspectorKtorPlugin) &#123;</div>
+              <div className="pl-8 text-neutral-400">host = "127.0.0.1" <span className="text-neutral-500">// or host IP for physical devices</span></div>
+              <div className="pl-8 text-neutral-400">port = {port}</div>
+              <div className="pl-4 text-neutral-300">&#125;</div>
+              <div className="text-neutral-300">&#125;</div>
+            </div>
+            <div className="pt-2 border-t border-neutral-800/60">
+              <div className="text-cyan-400 font-semibold">// 2. androidMain / jvmMain (OkHttp Interceptor):</div>
+              <div className="text-neutral-400">NetworkInspector.install(applicationContext) <span className="text-neutral-500">// Android onCreate</span></div>
+              <div className="text-neutral-300">val okHttpClient = OkHttpClient.Builder()</div>
+              <div className="pl-4 text-neutral-300">.addInterceptor(NetworkInspectorInterceptor())</div>
+              <div className="pl-4 text-neutral-300">.build()</div>
+            </div>
           </div>
         </div>
       </div>

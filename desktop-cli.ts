@@ -1,8 +1,10 @@
 /**
- * Standalone TypeScript Desktop CLI for BlameBackend
+ * Standalone TypeScript Terminal CLI for BlameBackend
+ * (Kotlin Multiplatform Network Inspector)
  * 
- * Directly opens a raw TCP socket connection to the Android device via:
- * adb forward tcp:10245 tcp:10245
+ * Directly opens a raw TCP socket connection or connects to existing server:
+ * • Android: adb reverse tcp:10245 tcp:10245
+ * • iOS Simulator / Desktop / Local JVM: connects directly to 127.0.0.1:10245
  * 
  * Run with:
  * npx tsx desktop-cli.ts
@@ -105,8 +107,8 @@ function startTcpServer() {
   server.listen(ADB_PORT, '0.0.0.0', () => {
     console.log(`\x1b[32m[SERVER LISTENING]\x1b[0m Hosting TCP Server Socket on 0.0.0.0:${ADB_PORT}`);
     console.log(`• Android: Run \x1b[33madb reverse tcp:${ADB_PORT} tcp:${ADB_PORT}\x1b[0m`);
-    console.log(`• Desktop: Connects directly to 127.0.0.1:${ADB_PORT}`);
-    console.log('Waiting for incoming client connections...\n');
+    console.log(`• iOS Simulator / Desktop / JVM: Connects directly to \x1b[33m127.0.0.1:${ADB_PORT}\x1b[0m`);
+    console.log('Waiting for incoming Kotlin Multiplatform client connections...\n');
   });
 }
 
@@ -154,7 +156,8 @@ function handleRawWireMessage(rawJson: string) {
 
     if (envelope.type === 'HELLO') {
       const hello = JSON.parse(envelope.payloadJson);
-      console.log(`\x1b[36m[DEVICE DETECTED]\x1b[0m ${hello.deviceModel} (${hello.androidVersion}) - App: ${hello.appPackage}`);
+      const os = hello.osVersion || hello.androidVersion || 'Multiplatform';
+      console.log(`\x1b[36m[DEVICE DETECTED]\x1b[0m ${hello.deviceModel} (${os}) - App: ${hello.appPackage}`);
       console.log('─────────────────────────────────────────────────────────────────────────────\n');
       return;
     }

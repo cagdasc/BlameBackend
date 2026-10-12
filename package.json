@@ -1,7 +1,7 @@
 {
   "name": "blamebackend",
   "version": "0.0.1-alpha01",
-  "description": "Real-time Android Network Inspector & Terminal TUI for OkHttp and Ktor",
+  "description": "Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp (Android, iOS, Desktop, Server)",
   "type": "module",
   "repository": {
     "type": "git",
@@ -31,7 +31,10 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js && esbuild desktop-cli.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/desktop-cli.js",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -47,12 +50,14 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "typescript": "^7.0.2"
   }
 }

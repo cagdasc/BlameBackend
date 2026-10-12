@@ -67,7 +67,7 @@ async function startServer() {
     return list.length > 0 ? list[list.length - 1] : null;
   }
 
-  // --- TCP Server Socket for receiving incoming connections from Android/Desktop clients ---
+  // --- TCP Server Socket for receiving incoming connections from Kotlin Multiplatform clients (Android, iOS, Desktop, Server) ---
   function startOrRestartTcpServer(targetPort: number = adbManager.getConfig().port) {
     if (tcpServer) {
       try {
@@ -214,7 +214,7 @@ async function startServer() {
     tcpServer.listen(targetPort, '0.0.0.0', () => {
       isTcpServerListening = true;
       tcpServerError = null;
-      console.log(`[BlameBackend Server] TCP Server Socket listening on 0.0.0.0:${targetPort} for incoming client connections (Android & Desktop)`);
+      console.log(`[BlameBackend Server] TCP Server Socket listening on 0.0.0.0:${targetPort} for incoming client connections (Kotlin Multiplatform: Android, iOS, Desktop, Server)`);
     });
   }
 
@@ -442,7 +442,7 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     const config = adbManager.getConfig();
     console.log(`[BlameBackend Server] Running on http://localhost:${PORT}`);
-    console.log(`[BlameBackend Server] Hosting TCP Server Socket on 0.0.0.0:${config.port} (accepting Android & Desktop clients)`);
+    console.log(`[BlameBackend Server] Hosting TCP Server Socket on 0.0.0.0:${config.port} (accepting Kotlin Multiplatform clients: Android, iOS, Desktop, Server)`);
   });
 }
 

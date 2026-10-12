@@ -4,6 +4,7 @@
  */
 
 import { NetworkEvent, DeviceInfo } from '../types/inspector';
+import { apiUrl } from './apiConfig';
 
 export type LiveStreamCallback = (event: NetworkEvent) => void;
 export type DeviceCallback = (device: DeviceInfo) => void;
@@ -22,7 +23,7 @@ class LiveSocketClient {
     if (this.eventSource) return;
 
     try {
-      this.eventSource = new EventSource('/api/stream');
+      this.eventSource = new EventSource(apiUrl('/api/stream'));
 
       this.eventSource.onmessage = (e) => {
         try {

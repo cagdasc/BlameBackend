@@ -343,7 +343,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
               </p>
               <p className="text-neutral-600 text-[11px] max-w-xs">
                 {events.length === 0
-                  ? 'Connect your device and trigger HTTP requests in your Android app to inspect traffic in real time.'
+                  ? 'Connect your Kotlin Multiplatform app (Android, iOS, Desktop) and trigger HTTP requests to inspect traffic in real time.'
                   : `Clear filter or search with different query tokens.`}
               </p>
               {filterText && (

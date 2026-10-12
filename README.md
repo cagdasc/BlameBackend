@@ -1,7 +1,7 @@
 # BlameBackend
 
-> **Real-time Android Network Inspector & Terminal TUI for OkHttp and Ktor.**  
-> BlameBackend captures HTTP/HTTPS traffic directly from your Android app over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
+> **Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp.**  
+> BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, Compose Desktop, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console, native desktop app, or headless shell CLI.
 
 > **Note:** Vibe coded. No idea where it goes.
 
@@ -11,11 +11,11 @@
 
 ## Notice: Client Library Status
 
-> ⚠️ **The Android client library is still actively under development.**  
-> There is **no published artifact (Maven Central / JitPack) yet**. To use it in your app, include the `:core` module locally from `/client/core`:
+> ⚠️ **The Kotlin Multiplatform client library is still actively under development.**  
+> There is **no published artifact (Maven Central / JitPack) yet**. To use it in your multiplatform app, include the `:network-inspector` module locally from `/client/network-inspector`:
 >
 > ```kotlin
-> implementation(project(":core"))
+> implementation(project(":network-inspector"))
 > ```
 
 ---
@@ -86,12 +86,34 @@ npm run cli
 
 ---
 
-## Android App Setup
+## Kotlin Multiplatform (KMP) Setup
+The client library supports **Android, iOS, Compose Desktop, JVM, and Linux** using either Ktor Client or OkHttp.
 
-### 1. Initialize SDK
+### 1. Ktor Client Integration (`commonMain` - Multiplatform)
+For multiplatform code running on iOS, Android, Desktop, or Linux:
 
 ```kotlin
-// In your Application.onCreate:
+import io.ktor.client.HttpClient
+import com.cacaosd.networkinspector.ktor.NetworkInspectorKtorPlugin
+
+val client = HttpClient {
+    install(NetworkInspectorKtorPlugin) {
+        // Defaults to 127.0.0.1:10245 (or specify host machine IP for physical devices)
+        host = "127.0.0.1"
+        port = 10245
+    }
+}
+```
+
+### 2. OkHttp Interceptor (`androidMain` & `jvmMain`)
+For Android or JVM apps using OkHttp:
+
+```kotlin
+import okhttp3.OkHttpClient
+import com.cacaosd.networkinspector.NetworkInspector
+import com.cacaosd.networkinspector.okhttp.NetworkInspectorInterceptor
+
+// In your Android Application onCreate:
 NetworkInspector.install(this)
 
 // In your OkHttpClient builder:
@@ -100,28 +122,25 @@ val client = OkHttpClient.Builder()
     .build()
 ```
 
-### 2. Build & Run the Sample App
+### 3. Running Sample Applications
 
+**Android App:**
 ```bash
 cd client
-./gradlew installDebug
+./gradlew :app:installDebug
 ```
+*Tip: Open the **Devices** tab in BlameBackend—attached Android devices and emulators are auto-detected and port-forwarded with `adb reverse tcp:10245 tcp:10245`.*
 
-Open the **Devices** tab in BlameBackend—your device is auto-selected and port-forwarded.
+**Compose Desktop App:**
+```bash
+cd client
+./gradlew :composeApp:run
+```
+*Desktop and iOS simulator apps connect directly to `127.0.0.1:10245` without requiring ADB.*
 
 ![Devices](assets/devices.png)
 
-## Desktop Client
-
-Run the desktop Compose client from the `client` directory:
-
-```bash
-./gradlew :composeApp:run
-```
-
-The desktop client listens on `127.0.0.1:10245` and streams Ktor request events using the same inspector protocol as the Android client.
-
-### 3. Custom Request Dispatcher
+### 4. Custom Request Dispatcher
 
 Test endpoint edge cases or inject custom payloads directly into the inspector using the built-in Dispatcher:
 

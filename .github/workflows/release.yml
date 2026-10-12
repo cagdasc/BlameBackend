@@ -1,4 +1,4 @@
-name: Release npm Package
+name: Release (Tauri v2 Desktop & Binaries for Linux & Apple Silicon)
 
 on:
   push:
@@ -16,7 +16,185 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  # ------------------------------------------------------------
+  # 1. Build Tauri v2 for Linux (x64: .deb, .AppImage, binary)
+  # ------------------------------------------------------------
+  build-linux:
+    name: Build Tauri v2 (Linux x64)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies for Tauri v2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Bun (for standalone server binary)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install --no-audit
+          else
+            npm install --no-audit
+          fi
+
+      - name: Build web frontend & server bundle
+        run: npm run build
+
+      - name: Build Tauri v2 Desktop App for Linux
+        run: npx tauri build
+
+      - name: Compile Bun standalone Linux binaries
+        run: |
+          mkdir -p dist/binaries
+          bun build --compile --external vite --target=bun-linux-x64 server.ts --outfile=dist/binaries/blamebackend-server-linux-x64
+          bun build --compile --target=bun-linux-x64 desktop-cli.ts --outfile=dist/binaries/blamebackend-cli-linux-x64
+          chmod +x dist/binaries/*
+
+      - name: Gather Linux Release Assets
+        id: gather
+        run: |
+          RAW_TAG="${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v0.0.1-alpha01' }}"
+          TAG="${RAW_TAG#refs/tags/}"
+          mkdir -p artifacts-linux
+
+          # Copy Deb and AppImage bundles if created
+          find src-tauri/target/release/bundle/deb -name "*.deb" -exec cp {} artifacts-linux/ \; 2>/dev/null || true
+          find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec cp {} artifacts-linux/ \; 2>/dev/null || true
+
+          # Package Tauri raw binary
+          if [ -f src-tauri/target/release/blamebackend ]; then
+            tar -czvf "artifacts-linux/blamebackend-desktop-${TAG}-linux-x64.tar.gz" -C src-tauri/target/release blamebackend
+          fi
+
+          # Package standalone Bun CLI and server binaries
+          tar -czvf "artifacts-linux/blamebackend-server-${TAG}-linux-x64.tar.gz" -C dist/binaries blamebackend-server-linux-x64
+          tar -czvf "artifacts-linux/blamebackend-cli-${TAG}-linux-x64.tar.gz" -C dist/binaries blamebackend-cli-linux-x64
+
+          ls -la artifacts-linux
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-linux-assets
+          path: artifacts-linux/*
+          if-no-files-found: error
+
+  # -----------------------------------------------------------------
+  # 2. Build Tauri v2 for Apple Silicon (macOS arm64: .dmg, .app)
+  # -----------------------------------------------------------------
+  build-apple-silicon:
+    name: Build Tauri v2 (Apple Silicon macOS arm64)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust for Apple Silicon (aarch64-apple-darwin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Bun (for standalone server binary)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install --no-audit
+          else
+            npm install --no-audit
+          fi
+
+      - name: Build web frontend & server bundle
+        run: npm run build
+
+      - name: Build Tauri v2 Desktop App for Apple Silicon
+        run: npx tauri build --target aarch64-apple-darwin
+
+      - name: Compile Bun standalone Apple Silicon binaries
+        run: |
+          mkdir -p dist/binaries
+          bun build --compile --external vite --target=bun-darwin-arm64 server.ts --outfile=dist/binaries/blamebackend-server-darwin-arm64
+          bun build --compile --target=bun-darwin-arm64 desktop-cli.ts --outfile=dist/binaries/blamebackend-cli-darwin-arm64
+          chmod +x dist/binaries/*
+
+      - name: Gather Apple Silicon Release Assets
+        id: gather
+        run: |
+          RAW_TAG="${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v0.0.1-alpha01' }}"
+          TAG="${RAW_TAG#refs/tags/}"
+          mkdir -p artifacts-macos
+
+          # Copy macOS .dmg
+          find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" -exec cp {} artifacts-macos/ \; 2>/dev/null || true
+
+          # Compress .app directory
+          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/BlameBackend.app" ]; then
+            tar -czvf "artifacts-macos/BlameBackend-${TAG}-darwin-arm64.app.tar.gz" -C "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" "BlameBackend.app"
+          fi
+
+          # Package standalone Bun CLI and server binaries
+          tar -czvf "artifacts-macos/blamebackend-server-${TAG}-darwin-arm64.tar.gz" -C dist/binaries blamebackend-server-darwin-arm64
+          tar -czvf "artifacts-macos/blamebackend-cli-${TAG}-darwin-arm64.tar.gz" -C dist/binaries blamebackend-cli-darwin-arm64
+
+          ls -la artifacts-macos
+
+      - name: Upload Apple Silicon Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-apple-silicon-assets
+          path: artifacts-macos/*
+          if-no-files-found: error
+
+  # ------------------------------------------------------------
+  # 3. Create GitHub Release, Checksums & Publish to npm
+  # ------------------------------------------------------------
+  release:
+    name: Publish Release & npm Package
+    needs: [build-linux, build-apple-silicon]
     runs-on: ubuntu-latest
 
     steps:
@@ -37,46 +215,52 @@ jobs:
             npm install --no-audit
           fi
 
-      - name: Build web console and compile server/cli binaries
-        run: npm run build
+      - name: Create release directory
+        run: mkdir -p release-assets
 
-      - name: Create npm package tarball matching tag name and compute checksums
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tauri-linux-assets
+          path: release-assets
+
+      - name: Download Apple Silicon Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tauri-apple-silicon-assets
+          path: release-assets
+
+      - name: Create npm package tarball matching tag name
         id: package
         run: |
           RAW_TAG="${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v0.0.1-alpha01' }}"
           TAG="${RAW_TAG#refs/tags/}"
           echo "Building release for tag: $TAG"
 
-          # Update version in package.json to match tag (stripping leading 'v' for semver compliance)
+          # Update version in package.json to match tag
           CLEAN_VERSION="${TAG#v}"
           npm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version || true
 
-          # Pack the npm tarball
           BASE_TARBALL=$(npm pack)
           echo "Generated base tarball: $BASE_TARBALL"
 
-          # Create artifact named identically to the release tag (e.g. blamebackend-v0.0.1-alpha01.tgz)
           TAG_TARBALL="blamebackend-${TAG}.tgz"
-          cp "$BASE_TARBALL" "$TAG_TARBALL"
-          cp "$BASE_TARBALL" "blamebackend.tgz"
+          cp "$BASE_TARBALL" "release-assets/$TAG_TARBALL"
+          cp "$BASE_TARBALL" "release-assets/blamebackend.tgz"
 
-          echo "base_tarball=$BASE_TARBALL" >> $GITHUB_OUTPUT
-          echo "tag_tarball=$TAG_TARBALL" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          # Generate SHA-256 checksums file for all uploaded artifacts
-          sha256sum "$TAG_TARBALL" "$BASE_TARBALL" "blamebackend.tgz" > checksums.txt
+      - name: Generate SHA-256 Checksums
+        run: |
+          cd release-assets
+          sha256sum * > checksums.txt 2>/dev/null || shasum -a 256 * > checksums.txt
           cat checksums.txt
 
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ (github.ref_type == 'tag' && github.ref_name) || inputs.tag_name || 'v0.0.1-alpha01' }}
-          files: |
-            ${{ steps.package.outputs.tag_tarball }}
-            ${{ steps.package.outputs.base_tarball }}
-            blamebackend.tgz
-            checksums.txt
+          files: release-assets/*
           draft: false
           prerelease: ${{ contains((github.ref_type == 'tag' && github.ref_name) || inputs.tag_name, '-') }}
           generate_release_notes: true

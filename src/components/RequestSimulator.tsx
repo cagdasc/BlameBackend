@@ -147,10 +147,10 @@ export const RequestSimulator: React.FC<RequestSimulatorProps> = ({ onEventTrigg
         <div>
           <h2 className="text-lg font-bold text-neutral-100 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-cyan-400" />
-            <span>Android Test Scenarios & Interactive Simulation</span>
+            <span>Kotlin Multiplatform Test Scenarios &amp; Interactive Simulation</span>
           </h2>
           <p className="text-neutral-400 text-xs mt-1">
-            Simulate realistic Android network traffic from both OkHttp and Ktor Client integrations to verify all requirements.
+            Simulate realistic network traffic from Kotlin Multiplatform (Ktor &amp; OkHttp across Android, iOS, Desktop) to verify all inspector requirements.
           </p>
         </div>
 
