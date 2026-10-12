@@ -97,5 +97,6 @@ export interface FilterCriteria {
   method?: string;
   status?: string;
   device?: string;
+  protocol?: string;
   search?: string;
 }

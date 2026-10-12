@@ -112,7 +112,7 @@ class NetworkInspectorInterceptor : Interceptor {
             NetworkEventDto(
                 id = requestId,
                 timestamp = timestamp,
-                request = requestDto,
+                request = requestDto.copy(protocol = response.protocol.toString()),
                 response = responseDto,
                 durationMs = durationMs
             )

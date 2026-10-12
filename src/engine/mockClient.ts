@@ -134,6 +134,8 @@ export class AndroidNetworkSimulator {
     const statusCode = params.statusCode || 200;
     const statusMessage = params.statusMessage || (statusCode === 200 ? 'OK' : statusCode === 201 ? 'Created' : statusCode === 404 ? 'Not Found' : 'Internal Server Error');
 
+    const negotiatedProtocol = params.protocol || (params.clientType === 'okhttp' ? 'h2' : 'HTTP/2.0');
+
     const response: NetworkResponse = {
       statusCode,
       statusMessage,
@@ -141,11 +143,15 @@ export class AndroidNetworkSimulator {
       body: resPayload,
       durationMs: delay,
       sizeBytes: resPayload?.sizeBytes ?? 0,
-      protocol: request.protocol
+      protocol: negotiatedProtocol
     };
 
     const completedEvent: NetworkEvent = {
       ...initialEvent,
+      request: {
+        ...initialEvent.request,
+        protocol: negotiatedProtocol
+      },
       response,
       durationMs: delay,
       status: 'completed'

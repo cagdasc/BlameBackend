@@ -101,11 +101,13 @@ val NetworkInspectorPlugin = createClientPlugin("NetworkInspector") {
         val durationMs = metadata.startTime.elapsedNow().inWholeMilliseconds
         val statusCode = response.status.value
 
+        val protocol = response.version.toString()
+
         InspectorEventBus.dispatch(
             NetworkEventDto(
                 id = metadata.request.id,
                 timestamp = metadata.request.timestamp,
-                request = metadata.request,
+                request = metadata.request.copy(protocol = protocol),
                 response = NetworkResponseDto(
                     statusCode = statusCode,
                     statusMessage = response.status.description,
@@ -113,7 +115,7 @@ val NetworkInspectorPlugin = createClientPlugin("NetworkInspector") {
                     body = responsePayload,
                     durationMs = durationMs,
                     sizeBytes = responsePayload.sizeBytes,
-                    protocol = response.version.toString(),
+                    protocol = protocol,
                 ),
                 durationMs = durationMs,
                 error = if (statusCode >= 400) {

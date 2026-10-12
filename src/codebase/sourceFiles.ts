@@ -584,7 +584,7 @@ class NetworkInspectorInterceptor : Interceptor {
             NetworkEventDto(
                 id = requestId,
                 timestamp = timestamp,
-                request = requestDto,
+                request = requestDto.copy(protocol = response.protocol.toString()),
                 response = responseDto,
                 durationMs = durationMs
             )
@@ -783,7 +783,7 @@ val NetworkInspector = createClientPlugin("NetworkInspector", ::NetworkInspector
             NetworkEventDto(
                 id = requestId,
                 timestamp = timestamp,
-                request = requestDto,
+                request = requestDto.copy(protocol = response.version.toString()),
                 response = responseDto,
                 durationMs = durationMs
             )
@@ -919,7 +919,7 @@ class InspectorDesktopApp(private val port: Int) {
         println("────────────────────────────────────────")
         println("Status       \${event.response?.statusCode ?: "Pending"} \${event.response?.statusMessage ?: ""}")
         println("Duration     \${event.durationMs ?: 0} ms")
-        println("Protocol     \${event.request.protocol}")
+        println("Protocol     \${event.response?.protocol ?: event.request.protocol}")
         println("")
         println("Request Headers")
         event.request.headers.forEach { (k, v) -> println("  \$k: \$v") }

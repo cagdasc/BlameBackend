@@ -146,7 +146,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
         url: event.request.url,
         host: event.request.host,
         path: event.request.path,
-        protocol: event.request.protocol,
+        protocol: event.response?.protocol || event.request.protocol,
         client: event.request.clientType,
         headers: event.request.headers,
         body: parsedReqBody ?? null
@@ -154,6 +154,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
       response: event.response ? {
         statusCode: event.response.statusCode,
         statusMessage: event.response.statusMessage,
+        protocol: event.response.protocol,
         headers: event.response.headers,
         body: parsedResBody ?? null
       } : null,
@@ -393,6 +394,18 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                       <span className="text-neutral-200">{event.request.path}</span>
                     </div>
 
+                    {/* Protocol badge */}
+                    <span
+                      className={`text-[10px] font-mono shrink-0 px-1 py-0.5 rounded ${
+                        event.response?.protocol
+                          ? 'bg-neutral-800 text-cyan-300 border border-neutral-700/60'
+                          : 'text-neutral-500'
+                      }`}
+                      title={event.response?.protocol ? `Negotiated Protocol: ${event.response.protocol}` : 'Protocol negotiating...'}
+                    >
+                      {event.response?.protocol || (event.status === 'pending' ? '...' : event.request.protocol || 'HTTP')}
+                    </span>
+
                     {/* Client engine badge */}
                     <span className="text-[10px] text-neutral-500 shrink-0">
                       {event.request.clientType}
@@ -476,7 +489,10 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                       </span>
                       <span>·</span>
                       <span>
-                        Protocol: <span className="text-neutral-200">{selectedEvent.request.protocol}</span>
+                        Protocol:{' '}
+                        <span className="text-cyan-300 font-semibold font-mono">
+                          {selectedEvent.response?.protocol || selectedEvent.request.protocol || (selectedEvent.status === 'pending' ? 'Pending' : 'HTTP')}
+                        </span>
                       </span>
                       <span>·</span>
                       <span>
@@ -631,6 +647,21 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                         <div className="grid grid-cols-4 gap-2">
                           <span className="text-neutral-500">Path:</span>
                           <span className="col-span-3 text-neutral-300">{selectedEvent.request.path}</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          <span className="text-neutral-500">Protocol:</span>
+                          <span className="col-span-3 text-cyan-300 font-mono flex items-center gap-1.5">
+                            <span>{selectedEvent.response?.protocol || selectedEvent.request.protocol || (selectedEvent.status === 'pending' ? 'Pending (negotiating)' : 'HTTP')}</span>
+                            {selectedEvent.response?.protocol ? (
+                              <span className="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-1.5 py-0.5 rounded">
+                                Negotiated on response
+                              </span>
+                            ) : selectedEvent.status === 'pending' ? (
+                              <span className="text-[10px] text-amber-400 bg-amber-950/60 border border-amber-800/60 px-1.5 py-0.5 rounded animate-pulse">
+                                Awaiting response handshake
+                              </span>
+                            ) : null}
+                          </span>
                         </div>
                         <div className="grid grid-cols-4 gap-2">
                           <span className="text-neutral-500">Client Integration:</span>

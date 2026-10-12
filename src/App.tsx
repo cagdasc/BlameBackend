@@ -85,7 +85,16 @@ export default function App() {
         const index = prev.findIndex((e) => e.id === event.id);
         if (index >= 0) {
           const updated = [...prev];
-          updated[index] = event;
+          const resolvedProtocol = event.response?.protocol || event.request?.protocol || updated[index].request?.protocol;
+          updated[index] = {
+            ...updated[index],
+            ...event,
+            request: {
+              ...updated[index].request,
+              ...event.request,
+              protocol: resolvedProtocol
+            }
+          };
           return updated;
         } else {
           return [...prev, event];

@@ -180,9 +180,11 @@ function renderTerminalEvent(event: NetworkEventDto) {
 
   const hostAndPath = `${event.request.host}${event.request.path}`;
   const duration = event.durationMs !== undefined ? `${event.durationMs}ms` : 'pending';
+  const protocol = event.response?.protocol || (event.response ? 'HTTP/1.1' : (event.request.protocol || '...'));
+  const protoBadge = `\x1b[35m${protocol.padEnd(8)}\x1b[0m`;
   const client = `[${event.request.clientType}]`;
 
-  console.log(`${method} ${status}  ${hostAndPath.padEnd(46)} \x1b[90m${client}\x1b[0m \x1b[36m${duration}\x1b[0m`);
+  console.log(`${method} ${status}  ${protoBadge} ${hostAndPath.padEnd(40)} \x1b[90m${client}\x1b[0m \x1b[36m${duration}\x1b[0m`);
 
   // If there's an error, print it
   if (event.error) {

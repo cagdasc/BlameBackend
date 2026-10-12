@@ -19,6 +19,10 @@ export function parseFilterQuery(raw: string): FilterCriteria {
       criteria.status = token.slice(7).toLowerCase();
     } else if (token.startsWith('device:')) {
       criteria.device = token.slice(7).toLowerCase();
+    } else if (token.startsWith('protocol:')) {
+      criteria.protocol = token.slice(9).toLowerCase();
+    } else if (token.startsWith('proto:')) {
+      criteria.protocol = token.slice(6).toLowerCase();
     } else if (token.startsWith('search:')) {
       generalTerms.push(token.slice(7));
     } else {
@@ -61,6 +65,14 @@ export function matchesFilter(event: NetworkEvent, criteria: FilterCriteria): bo
     }
   }
 
+  // Filter by protocol (reads response protocol once arrived, or request protocol)
+  if (criteria.protocol) {
+    const activeProtocol = (event.response?.protocol || event.request.protocol || '').toLowerCase();
+    if (!activeProtocol.includes(criteria.protocol)) {
+      return false;
+    }
+  }
+
   // Filter by status (e.g. "200", "4xx", "5xx", "error")
   if (criteria.status) {
     const s = criteria.status;
@@ -86,6 +98,10 @@ export function matchesFilter(event: NetworkEvent, criteria: FilterCriteria): bo
     const term = criteria.search;
     const urlMatch = event.request.url.toLowerCase().includes(term);
     if (urlMatch) return true;
+
+    // Check protocol (response protocol or request protocol)
+    const activeProto = (event.response?.protocol || event.request.protocol || '').toLowerCase();
+    if (activeProto.includes(term)) return true;
 
     // Check request headers
     const reqHeadersMatch = Object.entries(event.request.headers).some(
