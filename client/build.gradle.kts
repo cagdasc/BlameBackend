@@ -9,7 +9,21 @@ plugins {
     alias(libs.plugins.compose.compiler) apply false
 }
 
+val isJitPackBuild = providers.environmentVariable("JITPACK").orNull == "true"
+val publicationGroup = if (isJitPackBuild) {
+    val jitPackGroup = providers.environmentVariable("GROUP").orElse("com.github.cagdasc").get()
+    val jitPackArtifact = providers.environmentVariable("ARTIFACT").orElse(rootProject.name).get()
+    "$jitPackGroup.$jitPackArtifact"
+} else {
+    "com.cacaosd"
+}
+val publicationVersion = if (isJitPackBuild) {
+    providers.environmentVariable("VERSION").orElse("0.0.1").get()
+} else {
+    "0.0.1"
+}
+
 allprojects {
-    group = "com.cacaosd"
-    version = "0.0.1"
+    group = publicationGroup
+    version = publicationVersion
 }

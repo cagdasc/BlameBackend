@@ -23,6 +23,9 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "BlameBackend"
-include(":app")
-include(":composeApp")
 include(":network-inspector")
+
+if (System.getenv().getOrDefault("JITPACK", "false") == "false") {
+    include(":app")
+    include(":composeApp")
+}
