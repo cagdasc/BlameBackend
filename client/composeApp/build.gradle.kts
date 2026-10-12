@@ -39,6 +39,7 @@ kotlin {
 
         jvmMain.dependencies {
             implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.okhttp)
             implementation(compose.desktop.currentOs)
         }
 
