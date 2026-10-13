@@ -31,7 +31,14 @@
 - **Interactive TUI Console**: Keyboard-driven UI (`j`/`k` navigation, `/` search, `c` clear, `Tab` panel switching).
 - **Headless Terminal CLI**: Stream colored requests directly in your shell (`blamebackend --cli`).
 - **Sensitive Data Redaction**: Automatic redaction of auth tokens, cookies, and secret headers.
-- **Binary & Image Inspection**: Safe hex preview for non-text payloads.
+---
+
+## Documentation & Architecture
+
+- 🤖 [**AGENTS.md**](AGENTS.md): Universal machine-readable specifications and boundaries for AI coding agents ([agents.md](https://agents.md/)).
+- 📚 [**Full Tech Stack & System Architecture**](docs/TECH_STACK.md): Detailed breakdown of all 6 applications and modules, wire schemas, and network topologies.
+- 📐 [**Developer Habits, DOs & DON'Ts**](docs/CODING_HABITS.md): Coding rules, non-destructive stream peeking, fail-soft patterns, and PR checklist.
+- 🛠️ [**Developer Habits Skill**](skills/developer-habits/SKILL.md): Reusable AI agent & IDE skill encapsulating personal coding standards and architecture rules.
 
 ---
 

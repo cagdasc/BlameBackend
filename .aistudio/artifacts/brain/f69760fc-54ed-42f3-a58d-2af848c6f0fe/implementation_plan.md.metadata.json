@@ -1,0 +1,6 @@
+{
+  "summary": "Comprehensive architectural plan to create:\n1. A custom engineering skill documenting coding habits, architecture conventions, DOs, and DON'Ts across Kotlin Multiplatform and TypeScript/React.\n2. A deep-dive tech stack and system architecture document detailing every application, module, and communication protocol.\n3. Organization of documentation into dedicated docs/ and skills/ directories.",
+  "updatedAt": "2026-10-13T22:37:23.370369750Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

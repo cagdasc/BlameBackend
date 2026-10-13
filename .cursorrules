@@ -1,0 +1,12 @@
+# Cursor Rules for BlameBackend
+
+Refer to AGENTS.md at the repository root for the full specification and rules.
+
+Key Invariants:
+1. Zero-Semantics Alteration: Never modify intercepted HTTP request or response bodies. Use `response.peekBody(maxBytes)` in OkHttp or clone/save channels in Ktor.
+2. Catch, Log & Re-throw: Always catch network exceptions, dispatch telemetry to `InspectorEventBus`, and immediately re-throw (`throw e`).
+3. Defensive Redaction: Mask `Authorization`, `Cookie`, `Set-Cookie`, `x-api-key`, and other tokens using case-insensitive checks.
+4. Fail-Soft Transport: An unreachable daemon or socket error must never crash the target mobile/desktop app.
+5. Strict KMP Boundaries: Keep `commonMain` pure; never import `java.io.*` or Android classes in `commonMain`.
+6. Enforce 64 KB Payload Cap: Set `truncated: true` when exceeding 64 KB.
+7. Sanitize Shell Arguments: Validate device serial IDs with `/^[a-zA-Z0-9.:_-]+$/` before calling ADB.
