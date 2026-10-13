@@ -1,16 +1,16 @@
 {
   "name": "blamebackend",
-  "version": "0.0.1-alpha01",
+  "version": "0.0.1",
   "description": "Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp (Android, iOS, Desktop, Server)",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cagdasc/Vibe-BlameBackend.git"
+    "url": "https://github.com/cagdasc/BlameBackend.git"
   },
   "bugs": {
-    "url": "https://github.com/cagdasc/Vibe-BlameBackend/issues"
+    "url": "https://github.com/cagdasc/BlameBackend/issues"
   },
-  "homepage": "https://github.com/cagdasc/Vibe-BlameBackend#readme",
+  "homepage": "https://github.com/cagdasc/BlameBackend#readme",
   "bin": {
     "blamebackend": "./bin/blamebackend.js"
   },

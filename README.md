@@ -1,4 +1,4 @@
-# BlameBackend
+# BlameBackend [![](https://jitpack.io/v/cagdasc/BlameBackend.svg)](https://jitpack.io/#cagdasc/BlameBackend)
 
 > **Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp.**  
 > BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, Compose Desktop, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
@@ -15,7 +15,7 @@
 > There is **no published artifact (Maven Central / JitPack) yet**. To use it in your multiplatform app, include the `:network-inspector` module locally from `/client/network-inspector`:
 >
 > ```kotlin
-> implementation(project(":network-inspector"))
+> implementation("com.github.cagdasc.Vibe-BlameBackend:network-inspector:<version>")
 > ```
 
 ---
@@ -39,10 +39,10 @@ Download or install the package tarball directly from GitHub Releases using npm:
 
 ```bash
 # 1. Install globally from GitHub Release tarball:
-npm install -g https://github.com/cagdasc/Vibe-BlameBackend/releases/download/v0.0.1-alpha01/blamebackend-v0.0.1-alpha01.tgz
+npm install -g https://github.com/cagdasc/BlameBackend/releases/download/v0.0.1-alpha01/blamebackend-v0.0.1-alpha01.tgz
 
 # (Or install the latest release directly via universal alias)
-npm install -g https://github.com/cagdasc/Vibe-BlameBackend/releases/latest/download/blamebackend.tgz
+npm install -g https://github.com/cagdasc/BlameBackend/releases/latest/download/blamebackend.tgz
 
 # 2. Run anywhere:
 blamebackend        # Web Console
@@ -57,8 +57,8 @@ blamebackend --cli  # Terminal CLI
 
 ```bash
 # Clone the repository
-git clone https://github.com/cagdasc/Vibe-BlameBackend.git
-cd Vibe-BlameBackend
+git clone https://github.com/cagdasc/BlameBackend.git
+cd BlameBackend
 
 # Install dependencies
 npm install
@@ -161,13 +161,7 @@ cd client
 
 ![Devices](assets/devices.png)
 
-### 5. Custom Request Dispatcher
-
-Test endpoint edge cases or inject custom payloads directly into the inspector using the built-in Dispatcher:
-
-![Dispatcher](assets/dispatcher.png)
-
-### 6. Terminal CLI Preview
+### 5. Terminal CLI Preview
 
 ```bash
 blamebackend --cli

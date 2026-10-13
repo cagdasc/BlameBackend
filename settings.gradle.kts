@@ -1,1 +1,1 @@
-rootProject.name = "Vibe-BlameBackend-JitPack"
+rootProject.name = "BlameBackend-JitPack"
