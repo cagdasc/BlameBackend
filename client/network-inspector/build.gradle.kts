@@ -6,6 +6,8 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain(21)
+
     android {
         namespace = "com.cacaosd.networkinspector"
         compileSdk = 37
