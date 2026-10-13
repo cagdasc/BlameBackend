@@ -1,7 +1,7 @@
 # BlameBackend
 
 > **Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp.**  
-> BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, Compose Desktop, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console, native desktop app, or headless shell CLI.
+> BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, Compose Desktop, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
 
 > **Note:** Vibe coded. No idea where it goes.
 
@@ -33,24 +33,23 @@
 
 ## Installation & Running
 
-### Option 1: Install from GitHub Releases
+### Install from GitHub Releases (.tar.gz with npm)
 
-Download `blamebackend-v0.0.1-alpha01.tgz` and `checksums.txt` from the [Releases](https://github.com/cagdasc/Vibe-BlameBackend/releases) page:
+Download or install the package tarball directly from GitHub Releases using npm:
 
 ```bash
-# 1. (Optional) Verify checksum
-sha256sum -c checksums.txt
-
-# 2. Install globally from GitHub Release URL:
+# 1. Install globally from GitHub Release tarball:
 npm install -g https://github.com/cagdasc/Vibe-BlameBackend/releases/download/v0.0.1-alpha01/blamebackend-v0.0.1-alpha01.tgz
 
 # (Or install the latest release directly via universal alias)
 npm install -g https://github.com/cagdasc/Vibe-BlameBackend/releases/latest/download/blamebackend.tgz
 
-# 3. Run anywhere:
+# 2. Run anywhere:
 blamebackend        # Web Console
 blamebackend --cli  # Terminal CLI
 ```
+
+*(Optional: Checksums are provided in `checksums.txt` on the release page to verify tarball integrity with `sha256sum -c checksums.txt`)*
 
 ---
 
@@ -168,7 +167,7 @@ Test endpoint edge cases or inject custom payloads directly into the inspector u
 
 ![Dispatcher](assets/dispatcher.png)
 
-### 6. Standalone Terminal CLI Preview
+### 6. Terminal CLI Preview
 
 ```bash
 blamebackend --cli
