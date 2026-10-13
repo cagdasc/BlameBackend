@@ -5,17 +5,21 @@
 
 > **Note:** Vibe coded. No idea where it goes.
 
-![TUI Console](assets/tui.png)
+<video
+  src="https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15"
+  poster="assets/tui.png"
+  controls>
+</video>
 
 ---
 
 ## Notice: Client Library Status
 
 > ⚠️ **The Kotlin Multiplatform client library is still actively under development.**  
-> There is **no published artifact (Maven Central / JitPack) yet**. To use it in your multiplatform app, include the `:network-inspector` module locally from `/client/network-inspector`:
+> There is **published artifact in JitPack**. To use it in your multiplatform app, include the following dependency to your common sourceset.
 >
 > ```kotlin
-> implementation("com.github.cagdasc.Vibe-BlameBackend:network-inspector:<version>")
+> implementation("com.github.cagdasc.BlameBackend:network-inspector:<version>")
 > ```
 
 ---
