@@ -102,24 +102,35 @@ fun App() {
                     }.body<List<Post>>()
                     "GET posts?userId=1: loaded ${posts.size} posts"
                 }
+
                 2 -> "GET posts/$id: loaded post ${client.get("$BASE_URL/posts/$id").body<Post>().id}"
-                3 -> "POST posts: created post ${client.post("$BASE_URL/posts") {
-                    contentType(ContentType.Application.Json)
-                    setBody(PostRequest(1, "Created by BlameBackend", "A sample post."))
-                }.body<Post>().id}"
-                4 -> "PUT posts/$id: replaced post ${client.put("$BASE_URL/posts/$id") {
-                    contentType(ContentType.Application.Json)
-                    setBody(Post(1, id, "Replaced by BlameBackend", "A replacement post."))
-                }.body<Post>().id}"
-                5 -> "PATCH posts/$id: patched post ${client.patch("$BASE_URL/posts/$id") {
-                    contentType(ContentType.Application.Json)
-                    setBody(PostPatchRequest("Patched by BlameBackend"))
-                }.body<Post>().id}"
+                3 -> "POST posts: created post ${
+                    client.post("$BASE_URL/posts") {
+                        contentType(ContentType.Application.Json)
+                        setBody(PostRequest(1, "Created by BlameBackend", "A sample post."))
+                    }.body<Post>().id
+                }"
+
+                4 -> "PUT posts/$id: replaced post ${
+                    client.put("$BASE_URL/posts/$id") {
+                        contentType(ContentType.Application.Json)
+                        setBody(Post(1, id, "Replaced by BlameBackend", "A replacement post."))
+                    }.body<Post>().id
+                }"
+
+                5 -> "PATCH posts/$id: patched post ${
+                    client.patch("$BASE_URL/posts/$id") {
+                        contentType(ContentType.Application.Json)
+                        setBody(PostPatchRequest("Patched by BlameBackend"))
+                    }.body<Post>().id
+                }"
+
                 6 -> "DELETE posts/$id: ${client.delete("$BASE_URL/posts/$id").bodyAsText()}"
                 7 -> {
                     val comments = client.get("$BASE_URL/posts/$id/comments").body<List<Comment>>()
                     "GET posts/$id/comments: loaded ${comments.size} comments"
                 }
+
                 else -> "GET posts/101 (expected 404): ${
                     client.get("$BASE_URL/posts/101").bodyAsText()
                 }"

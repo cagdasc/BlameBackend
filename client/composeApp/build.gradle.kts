@@ -20,29 +20,51 @@ kotlin {
     }
 
     jvm()
+    linuxX64 {
+        binaries {
+            executable {
+                entryPoint = "com.cacaosd.blamebackend.linux.main"
+            }
+        }
+    }
 
     sourceSets {
+        val commonMain = getByName("commonMain")
+        val composeMain = create("composeMain") {
+            dependsOn(commonMain)
+            dependencies {
+                implementation(compose.runtime)
+                implementation(compose.foundation)
+                implementation(compose.material3)
+                implementation(compose.ui)
+                implementation(libs.ktor.client.core)
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.serialization.kotlinx.json)
+                implementation(libs.kotlinx.serialization.json)
+            }
+        }
+        getByName("androidMain").dependsOn(composeMain)
+        getByName("jvmMain").dependsOn(composeMain)
+
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.content.negotiation)
-            implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.kotlinx.serialization.json)
             implementation(project(":network-inspector"))
         }
 
-        androidMain.dependencies {
+        getByName("androidMain").dependencies {
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.okhttp)
         }
 
-        jvmMain.dependencies {
+        getByName("jvmMain").dependencies {
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.okhttp)
             implementation(compose.desktop.currentOs)
+        }
+
+        getByName("linuxX64Main").dependencies {
+            implementation(compose.runtime)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.curl)
         }
 
         jvmTest.dependencies {
