@@ -42,7 +42,7 @@ kotlin {
         val jvmAndAndroidMain = create("jvmAndAndroidMain") {
             dependsOn(commonMain)
             dependencies {
-                api(libs.okhttp)
+                implementation(libs.okhttp)
                 implementation(libs.logger)
             }
         }
@@ -56,9 +56,9 @@ kotlin {
         }
 
         commonMain.dependencies {
-            api(libs.ktor.client.core)
-            api(libs.kotlinx.serialization.json)
-            api(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.core)
             implementation(libs.ktor.network)
         }
 
