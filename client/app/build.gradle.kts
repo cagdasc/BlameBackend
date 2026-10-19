@@ -45,7 +45,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.material)
     implementation(project(":composeApp"))
-    implementation(project(":network-inspector"))
+    implementation(project(":network-inspector-core"))
     implementation(libs.androidx.core.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -7,4 +7,4 @@ See [AGENTS.md](./AGENTS.md) for the authoritative project instructions, archite
 - Headless CLI: `npm run cli`
 - Typecheck & Lint: `npm run lint`
 - Production Build: `npm run build`
-- KMP Build: `./gradlew :network-inspector:assemble`
+- KMP Build: `./gradlew :network-inspector-core:assemble :network-inspector-ktor:assemble :network-inspector-okhttp:assemble`

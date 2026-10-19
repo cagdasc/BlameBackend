@@ -10,7 +10,9 @@ BlameBackend is a real-time, zero-semantics-alteration network inspection system
 
 - **Primary Goal**: Intercept, stream, and inspect HTTP/HTTPS traffic from apps over local TCP (`127.0.0.1:10245`) without altering request/response behavior or dropping requests if the daemon disconnects.
 - **Key Modules**:
-  - `:network-inspector` — Core Kotlin Multiplatform library (OkHttp interceptor, Ktor client plugin, redactor, protocol).
+  - `:network-inspector-core` — Shared Kotlin Multiplatform protocol, capture, redaction, and transport.
+  - `:network-inspector-ktor` — Ktor client plugin adapter.
+  - `:network-inspector-okhttp` — OkHttp interceptor adapter for JVM and Android.
   - `:app` & `:composeApp` — Android and Compose Desktop sample applications.
   - `server.ts` & `adbManager.ts` — Express daemon, ADB port-forwarding bridge, and raw TCP server.
   - `src/` — React 19 + Tailwind CSS v4 Terminal TUI Web Console.
@@ -48,8 +50,8 @@ BlameBackend is a real-time, zero-semantics-alteration network inspection system
 - **Preview static frontend**: `npm run preview`
 
 ### Kotlin Multiplatform & Android
-- **Build KMP library**: `./gradlew :network-inspector:assemble`
-- **Run KMP tests**: `./gradlew :network-inspector:allTests` (or `desktopTest`)
+- **Build KMP libraries**: `./gradlew :network-inspector-core:assemble :network-inspector-ktor:assemble :network-inspector-okhttp:assemble`
+- **Run JVM tests**: `./gradlew :network-inspector-core:jvmTest :network-inspector-ktor:jvmTest :network-inspector-okhttp:jvmTest`
 - **Build Android sample app**: `./gradlew :app:assembleDebug`
 - **Run Compose Desktop app**: `./gradlew :composeApp:run`
 
@@ -75,7 +77,7 @@ BlameBackend is a real-time, zero-semantics-alteration network inspection system
 ### Ask First
 - Changing the wire envelope JSON schema (`WireEnvelope`, `MessageType`, `PROTOCOL_VERSION`).
 - Modifying default networking ports (`10245` TCP or `3000` HTTP).
-- Adding new heavyweight external dependencies to `:network-inspector` or `package.json`.
+- Adding new heavyweight external dependencies to `:network-inspector-*` or `package.json`.
 - Modifying Gradle release publishing configuration in `jitpack.yml` or root `build.gradle.kts`.
 
 ### Never Do (Strict Prohibitions)
@@ -171,4 +173,4 @@ socket.on('data', (chunk) => {
 Before completing any task, execute:
 1. `npm run lint` — Verify zero TypeScript compilation errors.
 2. `npm run build` — Verify both Vite frontend and Node server bundle cleanly.
-3. If Kotlin files were modified: `./gradlew :network-inspector:assemble` (if Gradle daemon is available in environment).
+3. If Kotlin files were modified, build the affected `:network-inspector-*` module(s) (if Gradle daemon is available in environment).

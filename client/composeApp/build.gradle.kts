@@ -47,15 +47,18 @@ kotlin {
         getByName("jvmMain").dependsOn(composeMain)
 
         commonMain.dependencies {
-            implementation(project(":network-inspector"))
+            implementation(project(":network-inspector-core"))
+            implementation(project(":network-inspector-ktor"))
         }
 
         getByName("androidMain").dependencies {
+            implementation(project(":network-inspector-okhttp"))
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.okhttp)
         }
 
         getByName("jvmMain").dependencies {
+            implementation(project(":network-inspector-okhttp"))
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.okhttp)
             implementation(compose.desktop.currentOs)

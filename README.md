@@ -12,10 +12,25 @@ https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15
 ## Notice: Client Library Status
 
 > ⚠️ **The Kotlin Multiplatform client library is still actively under development.**  
-> There is **published artifact in JitPack**. To use it in your multiplatform app, include the following dependency to your common sourceset.
+> The client is split into three artifacts:
+> - `network-inspector-core`: shared protocol, capture, and transport; required by the adapters.
+> - `network-inspector-ktor`: Ktor plugin for supported multiplatform targets.
+> - `network-inspector-okhttp`: OkHttp interceptor for JVM and Android.
+>
+> Add the core module and the adapter(s) your app uses. For JitPack, make sure `https://jitpack.io` is in your dependency repositories:
 >
 > ```kotlin
-> implementation("com.github.cagdasc.BlameBackend:network-inspector:<version>")
+> repositories {
+>     maven("https://jitpack.io")
+> }
+>
+> commonMain.dependencies {
+>     implementation("com.github.cagdasc.BlameBackend:network-inspector-core:<version>")
+>     implementation("com.github.cagdasc.BlameBackend:network-inspector-ktor:<version>")
+> }
+> androidMain.dependencies { // or jvmMain
+>     implementation("com.github.cagdasc.BlameBackend:network-inspector-okhttp:<version>")
+> }
 > ```
 
 ---
@@ -75,7 +90,7 @@ npm run cli
 ---
 
 ## Kotlin Multiplatform (KMP) Setup
-The client library supports **Android, iOS, JVM, and Linux** using either Ktor Client or OkHttp.
+The client library supports **Android, iOS, JVM, and Linux** through a shared core with separate Ktor and OkHttp adapter artifacts. Include the core in your common source set, add the Ktor artifact if you use Ktor, and add the OkHttp artifact only to Android/JVM source sets if you use OkHttp.
 
 ### 1. Initialize NetworkInspector
 Initialize the inspector at application startup to register device info and open the background transport socket (`127.0.0.1:10245`):

@@ -22,7 +22,12 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "BlameBackend"
-include(":network-inspector")
+include(
+    ":network-inspector-core",
+    ":network-inspector-ktor",
+    ":network-inspector-okhttp",
+    ":network-inspector-test-utils",
+)
 
 if (System.getenv().getOrDefault("JITPACK", "false") == "false") {
     include(":app")

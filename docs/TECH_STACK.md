@@ -19,12 +19,10 @@ BlameBackend is a real-time, zero-semantics alteration network inspector designe
 │   └──────────────┬────────────────┘  └──────────────┬────────────────┘ │
 │                  │                                  │                  │
 │   ┌──────────────▼──────────────────────────────────▼────────────────┐ │
-│   │ Network Inspector Core Library (:network-inspector)              │ │
-│   │ ├─ OkHttp Interceptor (NetworkInspectorInterceptor.kt)           │ │
-│   │ ├─ Ktor Client Plugin (NetworkInspectorPlugin.kt)                │ │
-│   │ ├─ Header Redactor & Sensitive Key Masker                        │ │
-│   │ ├─ Safe Payload Peeker & Binary Hex Dump Generator               │ │
-│   │ └─ TCP Socket Transport Client (InspectorClient.kt)              │ │
+│   │ Network Inspector Libraries                                      │ │
+│   │ ├─ :network-inspector-core — protocol, redaction, capture, TCP   │ │
+│   │ ├─ :network-inspector-ktor — Ktor client plugin                  │ │
+│   │ └─ :network-inspector-okhttp — OkHttp interceptor                │ │
 │   └──────────────────────────────┬───────────────────────────────────┘ │
 └──────────────────────────────────┼─────────────────────────────────────┘
                                    │
@@ -69,26 +67,26 @@ BlameBackend is a real-time, zero-semantics alteration network inspector designe
 
 ## 2. Per-Application Tech Stack Breakdown
 
-### Application 1: Kotlin Multiplatform Inspector Library (`:network-inspector`)
+### Kotlin Multiplatform Inspector Libraries
 
-* **Path**: `/client/network-inspector`
+* **Paths**: `/client/network-inspector-core`, `/client/network-inspector-ktor`, `/client/network-inspector-okhttp`
 * **Target Platforms**:
   * Android (`androidTarget`)
   * Desktop JVM (`jvm`)
   * iOS (`iosX64`, `iosArm64`, `iosSimulatorArm64`)
   * Native Linux (`linuxX64`)
 * **Build System**: Gradle 8.11.1 with Kotlin Multiplatform DSL (`build.gradle.kts`)
-* **Primary Language**: Kotlin 2.1.0
-* **Key Dependencies**:
+* **Core module** (`:network-inspector-core`): protocol, event capture, redaction, and TCP transport shared by all targets.
+* **Ktor module** (`:network-inspector-ktor`): multiplatform Ktor client plugin.
+* **OkHttp module** (`:network-inspector-okhttp`): JVM/Android OkHttp interceptor.
+* **Key dependencies**:
   * `kotlinx-coroutines-core:1.10.1` — Asynchronous event streaming and background socket transport.
   * `kotlinx-serialization-json:1.8.0` — Zero-reflection, high-speed wire protocol serialization.
   * `kotlinx-datetime:0.6.1` — High-precision epoch timestamps.
-  * `okhttp3:okhttp:4.12.0` (JVM & Android) — OkHttp interceptor and buffer tapping.
-  * `ktor-client-core:3.0.3` (All targets) — Ktor multiplatform client plugin.
-* **Internal Architecture**:
+  * `okhttp3:okhttp` (JVM & Android) — OkHttp interceptor and buffer tapping.
+  * `ktor-client-core` (All targets) — Ktor multiplatform client plugin.
+* **Core architecture**:
   * `Protocol.kt`: Defines `WireEnvelope`, `MessageType`, `HelloPayload`, and `NetworkEventDto`.
-  * `NetworkInspectorInterceptor.kt`: OkHttp interceptor using `peekBody` to clone byte streams non-destructively.
-  * `NetworkInspectorPlugin.kt`: Ktor client plugin intercepting both `Send` and `Receive` phases.
   * `HeaderRedactor.kt`: Case-insensitive regex/set scrubber for sensitive auth tokens and cookies.
   * `PayloadUtils.kt`: Content-type classifier, 64 KB truncation guard, and binary hex-dump renderer.
   * `InspectorEventBus.kt`: Decoupled publish-subscribe event broker.
@@ -107,7 +105,7 @@ BlameBackend is a real-time, zero-semantics alteration network inspector designe
   * `androidx.appcompat:appcompat:1.7.0`
   * `com.google.android.material:material:1.12.0`
   * `androidx.activity:activity-ktx:1.9.3`
-  * Project dependency on `:network-inspector`
+  * Project dependencies on `:network-inspector-core` and the relevant Ktor/OkHttp adapter.
 * **Role**:
   * Provides a runnable mobile test harness on real physical Android devices and emulators.
   * Demonstrates initializing `NetworkInspector.install(...)` in `BlameBackendApplication.kt`.
@@ -264,7 +262,7 @@ interface PayloadDto {
   * Dev: `npm run dev` (starts `server.ts` with tsx and Vite dev middleware)
   * Headless CLI: `npm run cli` (runs `desktop-cli.ts`)
 * **Kotlin Multiplatform Library**:
-  * Build: `./gradlew :network-inspector:assemble`
+  * Build: `./gradlew :network-inspector-core:assemble :network-inspector-ktor:assemble :network-inspector-okhttp:assemble`
   * JitPack Publishing: Configured via `jitpack.yml` and root `build.gradle.kts` using `maven-publish` plugin.
 * **CI/CD Automation**:
   * `.github/workflows/release.yml`: Automates building npm tarballs, computing SHA-256 checksums, and attaching release artifacts to GitHub Releases.

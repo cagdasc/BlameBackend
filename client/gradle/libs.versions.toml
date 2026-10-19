@@ -1,7 +1,7 @@
 [versions]
 # Build tools
 agp = "9.4.1"
-kotlin = "2.3.0"
+kotlin = "2.4.10"
 
 # Compose
 composeMultiplatform = "1.12.2"
@@ -70,5 +70,6 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 
 # Kotlin
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
