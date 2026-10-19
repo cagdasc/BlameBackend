@@ -43,7 +43,6 @@ kotlin {
             dependsOn(commonMain)
             dependencies {
                 implementation(libs.okhttp)
-                implementation(libs.logger)
             }
         }
 
@@ -53,6 +52,10 @@ kotlin {
 
         getByName("jvmMain") {
             dependsOn(jvmAndAndroidMain)
+            dependencies {
+                implementation(libs.logging.kotlin)
+                runtimeOnly(libs.logging.logback.classic)
+            }
         }
 
         commonMain.dependencies {

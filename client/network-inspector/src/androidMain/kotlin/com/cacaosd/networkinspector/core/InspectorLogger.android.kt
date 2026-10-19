@@ -1,7 +1,7 @@
 package com.cacaosd.networkinspector.core
 
-import dev.shivathapaa.logger.api.Log
+import android.util.Log
 
 internal actual fun logInspectorError(message: String, error: Throwable) {
-    Log.e(message, throwable = error)
+    Log.e("NetworkInspector", message, error)
 }
