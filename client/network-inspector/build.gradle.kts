@@ -62,6 +62,15 @@ kotlin {
             implementation(libs.ktor.network)
         }
 
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+
+        getByName("jvmTest").dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.ktor.client.cio)
+        }
+
         getByName("androidMain").dependencies {
             implementation(libs.androidx.core.ktx)
         }
