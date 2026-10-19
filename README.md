@@ -1,15 +1,11 @@
 # BlameBackend [![](https://jitpack.io/v/cagdasc/BlameBackend.svg)](https://jitpack.io/#cagdasc/BlameBackend)
 
-> **Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp.**  
-> BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, Compose Desktop, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
+**Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp.**  
+BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
 
-> **Note:** Vibe coded. No idea where it goes.
+⚠️ **Note:** Vibe coded. No idea where it goes.
 
-<video
-  src="https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15"
-  poster="assets/tui.png"
-  controls>
-</video>
+https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15
 
 ---
 
@@ -33,18 +29,10 @@
 - **Sensitive Data Redaction**: Automatic redaction of auth tokens, cookies, and secret headers.
 ---
 
-## Documentation & Architecture
-
-- 🤖 [**AGENTS.md**](AGENTS.md): Universal machine-readable specifications and boundaries for AI coding agents ([agents.md](https://agents.md/)).
-- 📚 [**Full Tech Stack & System Architecture**](docs/TECH_STACK.md): Detailed breakdown of all 6 applications and modules, wire schemas, and network topologies.
-- 📐 [**Developer Habits, DOs & DON'Ts**](docs/CODING_HABITS.md): Coding rules, non-destructive stream peeking, fail-soft patterns, and PR checklist.
-- 🛠️ [**Developer Habits Skill**](skills/developer-habits/SKILL.md): Reusable AI agent & IDE skill encapsulating personal coding standards and architecture rules.
-
----
-
 ## Installation & Running
 
-### Install from GitHub Releases (.tar.gz with npm)
+<details>
+<summary><b>Install from GitHub Releases (.tar.gz with npm)</b></summary>
 
 Download or install the package tarball directly from GitHub Releases using npm:
 
@@ -61,10 +49,11 @@ blamebackend --cli  # Terminal CLI
 ```
 
 *(Optional: Checksums are provided in `checksums.txt` on the release page to verify tarball integrity with `sha256sum -c checksums.txt`)*
-
+</details>
 ---
 
-### Option 2: Run from Source
+<details>
+<summary><b>Run from Source</b></summary>
 
 ```bash
 # Clone the repository
@@ -81,16 +70,19 @@ npm run dev
 npm run cli
 ```
 *(In VS Code, you can also press `Ctrl+Shift+B` / `Cmd+Shift+B` to launch the server, or press `F5` to debug).*
+</details>
 
 ---
 
 ## Kotlin Multiplatform (KMP) Setup
-The client library supports **Android, iOS, Compose Desktop, JVM, and Linux** using either Ktor Client or OkHttp.
+The client library supports **Android, iOS, JVM, and Linux** using either Ktor Client or OkHttp.
 
 ### 1. Initialize NetworkInspector
 Initialize the inspector at application startup to register device info and open the background transport socket (`127.0.0.1:10245`):
 
-**Multiplatform / iOS / Linux (`commonMain` / Platform Entry):**
+<details>
+<summary><b>Multiplatform / iOS / Linux</b></summary>
+
 ```kotlin
 import com.cacaosd.networkinspector.transport.NetworkInspector
 import com.cacaosd.networkinspector.transport.NetworkInspectorConfig
@@ -109,17 +101,29 @@ NetworkInspector.install(
     )
 )
 ```
+</details>
 
-**Android (`androidMain` - `Application.onCreate`):**
+<details>
+<summary><b>Android</b></summary>
+
 ```kotlin
+import android.app.Application
 import com.cacaosd.networkinspector.transport.NetworkInspector
 import com.cacaosd.networkinspector.transport.install
 
-// In your Application.onCreate:
-NetworkInspector.install(this)
-```
+class BlameBackendApplication : Application() {
 
-**Desktop / JVM (`jvmMain` - `main`):**
+    override fun onCreate() {
+        super.onCreate()
+        NetworkInspector.install(this)
+    }
+}
+```
+</details>
+
+<details>
+<summary><b>Desktop / JVM</b></summary>
+
 ```kotlin
 import com.cacaosd.networkinspector.transport.NetworkInspector
 import com.cacaosd.networkinspector.transport.install
@@ -129,9 +133,10 @@ NetworkInspector.install(
     appVersion = "1.0.0"
 )
 ```
+</details>
 
-### 2. Ktor Client Integration (`commonMain` - Multiplatform)
-For multiplatform HTTP requests across Android, iOS, Compose Desktop, and Linux, install the `NetworkInspectorPlugin`:
+### 2. Ktor Client Integration
+For multiplatform HTTP requests across Android, iOS, and Linux, install the `NetworkInspectorPlugin`:
 
 ```kotlin
 import io.ktor.client.HttpClient
@@ -142,7 +147,7 @@ val client = HttpClient {
 }
 ```
 
-### 3. OkHttp Interceptor (`androidMain` & `jvmMain`)
+### 3. OkHttp Interceptor (`Android` & `JVM`)
 For Android or JVM apps using OkHttp:
 
 ```kotlin
@@ -170,16 +175,12 @@ cd client
 ```
 *Desktop and iOS simulator apps connect directly to `127.0.0.1:10245` without requiring ADB.*
 
-![Devices](assets/devices.png)
-
 ### 5. Terminal CLI Preview
 
 ```bash
 blamebackend --cli
 # or: npm run cli
 ```
-
-![Terminal CLI](assets/cli.png)
 
 ---
 
