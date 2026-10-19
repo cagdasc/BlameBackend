@@ -23,7 +23,14 @@ export default defineConfig(() => {
     server: {
       // HMR is fully enabled on your local machine, and disabled only in cloud preview proxies
       hmr: isCloudPreview ? false : true,
-      watch: isCloudPreview ? null : {},
+      watch: {
+        ignored: [
+          '**/client/**',
+          '**/client/**/*',
+          path.resolve(currentDir, 'client/**'),
+          path.resolve(currentDir, 'client/**/*'),
+        ],
+      },
     },
     build: {
       outDir: 'dist/client',

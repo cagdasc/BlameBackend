@@ -431,7 +431,15 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: isCloudPreview ? false : undefined
+        hmr: isCloudPreview ? false : undefined,
+        watch: {
+          ignored: [
+            '**/client/**',
+            '**/client/**/*',
+            path.resolve(__dirname, 'client/**'),
+            path.resolve(__dirname, 'client/**/*'),
+          ],
+        },
       },
       appType: 'spa'
     });
