@@ -1,0 +1,11 @@
+query ListTodos {
+    todos(first: 10, userId: 1) {
+        id
+        title
+        completed
+        user {
+            id
+            name
+        }
+    }
+}

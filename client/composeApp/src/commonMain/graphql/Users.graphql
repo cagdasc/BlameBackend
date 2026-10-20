@@ -1,0 +1,39 @@
+query ListUsers {
+    users(first: 5) {
+        id
+        name
+        username
+        email
+        address {
+            city
+        }
+        company {
+            name
+        }
+    }
+}
+
+query UserDetails {
+    userById(id: 1) {
+        id
+        name
+        username
+        email
+        phone
+        website
+        address {
+            street
+            city
+            zipcode
+            geo {
+                lat
+                lng
+            }
+        }
+        company {
+            name
+            catchPhrase
+            bs
+        }
+    }
+}

@@ -4,6 +4,18 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.apollo)
+}
+
+apollo {
+    service("placeholder") {
+        packageName.set("com.cacaosd.blamebackend.placeholder")
+
+        introspection {
+            endpointUrl.set("https://graphqlplaceholder.vercel.app/graphql")
+            schemaFile.set(file("src/commonMain/graphql/schema.graphqls"))
+        }
+    }
 }
 
 kotlin {
@@ -41,6 +53,7 @@ kotlin {
                 implementation(libs.ktor.client.content.negotiation)
                 implementation(libs.ktor.serialization.kotlinx.json)
                 implementation(libs.kotlinx.serialization.json)
+                implementation(project(":network-inspector-apollo"))
             }
         }
         getByName("androidMain").dependsOn(composeMain)
@@ -49,6 +62,7 @@ kotlin {
         commonMain.dependencies {
             implementation(project(":network-inspector-core"))
             implementation(project(":network-inspector-ktor"))
+            implementation(libs.apollo.runtime)
         }
 
         getByName("androidMain").dependencies {

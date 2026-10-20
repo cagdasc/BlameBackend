@@ -29,6 +29,7 @@ ktorNetwork = "3.6.0"
 kotlin-logging-version = "8.0.4"
 logback-version = "1.6.5"
 okhttp = "5.5.0"
+apolloKotlin = "5.2.0"
 
 [libraries]
 # Android
@@ -54,6 +55,7 @@ ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "kto
 ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktorNetwork" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktorClientCore" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+apollo-runtime = { module = "com.apollographql.apollo:apollo-runtime", version.ref = "apolloKotlin" }
 
 # Logging
 logging-kotlin = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging-version" }
@@ -73,3 +75,4 @@ compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMu
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+apollo = { id = "com.apollographql.apollo", version.ref = "apolloKotlin" }

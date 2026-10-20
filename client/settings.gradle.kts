@@ -26,6 +26,7 @@ include(
     ":network-inspector-core",
     ":network-inspector-ktor",
     ":network-inspector-okhttp",
+    ":network-inspector-apollo",
     ":network-inspector-test-utils",
 )
 

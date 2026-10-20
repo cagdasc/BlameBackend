@@ -1,0 +1,37 @@
+query ListPosts {
+    posts(first: 5) {
+        id
+        title
+        body
+        user {
+            id
+            name
+        }
+        comments(first: 2) {
+            id
+            name
+            body
+        }
+    }
+}
+
+query UserPosts($userId: Int!, $first: Int) {
+    posts(first: $first, userId: $userId) {
+        id
+        title
+        body
+    }
+}
+
+query PostComments($postId: Int!, $first: Int) {
+    comments(first: $first, postId: $postId) {
+        id
+        name
+        email
+        body
+        post {
+            id
+            title
+        }
+    }
+}

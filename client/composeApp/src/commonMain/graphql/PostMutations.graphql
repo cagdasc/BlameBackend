@@ -1,0 +1,27 @@
+mutation CreatePost {
+    createPost(post: { title: "Apollo sample post", body: "Created from BlameBackend", userId: 1 }) {
+        id
+        title
+        body
+        user {
+            id
+            name
+        }
+    }
+}
+
+mutation UpdatePost {
+    updatePost(postId: 1, post: { title: "Updated by Apollo sample", body: "Updated from BlameBackend" }) {
+        id
+        title
+        body
+        user {
+            id
+            name
+        }
+    }
+}
+
+mutation DeletePost {
+    deletePost(postId: 1)
+}

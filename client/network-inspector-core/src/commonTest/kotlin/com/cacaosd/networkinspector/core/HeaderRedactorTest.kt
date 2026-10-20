@@ -22,6 +22,9 @@ class HeaderRedactorTest {
         assertEquals("application/json", redacted["Accept"])
         assertEquals("Bearer secret", headers["Authorization"])
         assertTrue(redactor.isSensitive("AUTHORIZATION"))
+        assertTrue(redactor.isSensitive("X-Refresh-Token"))
+        assertTrue(redactor.isSensitive("db_password"))
+        assertFalse(redactor.isSensitive("X-Bypass-Cache"))
         assertFalse(redactor.isSensitive("Accept"))
     }
 }

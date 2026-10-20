@@ -1,6 +1,6 @@
 # BlameBackend [![](https://jitpack.io/v/cagdasc/BlameBackend.svg)](https://jitpack.io/#cagdasc/BlameBackend)
 
-**Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp.**  
+**Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor, OkHttp, and Apollo GraphQL.**
 BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
 
 ⚠️ **Note:** Vibe coded. No idea where it goes.
@@ -12,10 +12,11 @@ https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15
 ## Notice: Client Library Status
 
 > ⚠️ **The Kotlin Multiplatform client library is still actively under development.**  
-> The client is split into three artifacts:
+> The client is split into these artifacts:
 > - `network-inspector-core`: shared protocol, capture, and transport; required by the adapters.
 > - `network-inspector-ktor`: Ktor plugin for supported multiplatform targets.
 > - `network-inspector-okhttp`: OkHttp interceptor for JVM and Android.
+> - `network-inspector-apollo`: Apollo Kotlin HTTP interceptor for GraphQL operations.
 >
 > Add the core module and the adapter(s) your app uses. For JitPack, make sure `https://jitpack.io` is in your dependency repositories:
 >
@@ -27,6 +28,7 @@ https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15
 > commonMain.dependencies {
 >     implementation("com.github.cagdasc.BlameBackend:network-inspector-core:<version>")
 >     implementation("com.github.cagdasc.BlameBackend:network-inspector-ktor:<version>")
+>     implementation("com.github.cagdasc.BlameBackend:network-inspector-apollo:<version>")
 > }
 > androidMain.dependencies { // or jvmMain
 >     implementation("com.github.cagdasc.BlameBackend:network-inspector-okhttp:<version>")
@@ -174,7 +176,29 @@ val client = OkHttpClient.Builder()
     .build()
 ```
 
-### 4. Running Sample Applications
+
+### 4. Apollo GraphQL
+
+Declare Apollo Runtime and the inspector artifacts in the source set, then install the HTTP interceptor:
+
+```kotlin
+val apolloClient = ApolloClient.Builder()
+    .serverUrl("https://example.com/graphql")
+    .addHttpInterceptor(
+        NetworkInspectorApolloInterceptor(
+            NetworkInspectorApolloConfig(
+                captureQuery = true,
+                captureVariables = true,
+                captureResponseBody = true,
+            )
+        )
+    )
+    .build()
+```
+
+Query text, variables, and response bodies are off by default. Credential-like headers and fields (including passwords, tokens, and cookies) are redacted even when capture is enabled. Query documents containing inline sensitive arguments are omitted; captured payloads are capped at 64 KB.
+
+### 5. Running Sample Applications
 
 **Android App:**
 ```bash
@@ -188,9 +212,11 @@ cd client
 cd client
 ./gradlew :composeApp:run
 ```
+The Compose sample separates **REST · Ktor** and **GraphQL · Apollo** examples into tabs. Try user/profile and nested post/comment queries, albums/photos, todos, and create/update/delete mutations. GraphQL examples include variables as well as inline arguments. Request/response capture is enabled in the sample, while credential redaction remains active.
+
 *Desktop and iOS simulator apps connect directly to `127.0.0.1:10245` without requiring ADB.*
 
-### 5. Terminal CLI Preview
+### 6. Terminal CLI Preview
 
 ```bash
 blamebackend --cli

@@ -1,0 +1,28 @@
+query ListAlbums {
+    albums(first: 5) {
+        id
+        title
+        user {
+            id
+            name
+        }
+        photos(first: 2) {
+            id
+            title
+            thumbnailUrl
+        }
+    }
+}
+
+query AlbumPhotos {
+    photos(first: 5, albumId: 1) {
+        id
+        title
+        url
+        thumbnailUrl
+        album {
+            id
+            title
+        }
+    }
+}

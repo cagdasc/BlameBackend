@@ -16,17 +16,35 @@ class HeaderRedactor(customSensitiveHeaders: List<String> = emptyList()) {
             "set-cookie",
             "x-api-key",
             "x-auth-token",
+            "password",
+            "passwd",
+            "secret",
+            "credential",
+            "token",
             "apikey",
+            "pwd",
             "access-token"
         )
     }
 
     private val sensitiveSet: Set<String> = (DEFAULT_SENSITIVE_HEADERS + customSensitiveHeaders)
-        .map { it.lowercase() }
+        .map { it.normalizedHeaderName() }
         .toSet()
+    private val sensitiveNameMarkers = listOf(
+        "authorization",
+        "cookie",
+        "password",
+        "passwd",
+        "secret",
+        "credential",
+        "token",
+        "apikey",
+        "pwd",
+    )
 
     fun isSensitive(headerName: String): Boolean {
-        return sensitiveSet.contains(headerName.lowercase())
+        val normalizedName = headerName.normalizedHeaderName()
+        return normalizedName in sensitiveSet || sensitiveNameMarkers.any(normalizedName::contains)
     }
 
     fun redact(headers: Map<String, String>): Map<String, String> {
@@ -40,4 +58,6 @@ class HeaderRedactor(customSensitiveHeaders: List<String> = emptyList()) {
         }
         return result
     }
+
+    private fun String.normalizedHeaderName() = lowercase().filter(Char::isLetterOrDigit)
 }

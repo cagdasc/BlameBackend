@@ -1,4 +1,4 @@
 jdk:
   - openjdk21
 install:
-  - cd client && bash gradlew :network-inspector-core:publishToMavenLocal :network-inspector-ktor:publishToMavenLocal :network-inspector-okhttp:publishToMavenLocal
+  - cd client && bash gradlew :network-inspector-core:publishToMavenLocal :network-inspector-ktor:publishToMavenLocal :network-inspector-okhttp:publishToMavenLocal :network-inspector-apollo:publishToMavenLocal
