@@ -53,12 +53,14 @@ kotlin {
 
         getByName("androidMain").dependencies {
             implementation(project(":network-inspector-okhttp"))
+            implementation(libs.okhttp)
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.okhttp)
         }
 
         getByName("jvmMain").dependencies {
             implementation(project(":network-inspector-okhttp"))
+            implementation(libs.okhttp)
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.okhttp)
             implementation(compose.desktop.currentOs)

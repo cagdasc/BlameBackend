@@ -30,8 +30,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            api(project(":network-inspector-core"))
-            api(libs.ktor.client.core)
+            implementation(project(":network-inspector-core"))
+            implementation(libs.ktor.client.core)
         }
 
         commonTest.dependencies {

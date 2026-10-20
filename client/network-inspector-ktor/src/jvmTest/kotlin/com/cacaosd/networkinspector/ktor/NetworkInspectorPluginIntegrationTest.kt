@@ -19,6 +19,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.milliseconds
 
 class NetworkInspectorPluginIntegrationTest {
     @Test
@@ -39,7 +40,7 @@ class NetworkInspectorPluginIntegrationTest {
         try {
             val expectedUrl = "http://127.0.0.1:${server.port}/body"
             val event = async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(5_000) {
+                withTimeout(5_000.milliseconds) {
                     InspectorEventBus.events.first {
                         it.request.url == expectedUrl && it.response != null
                     }
@@ -75,7 +76,7 @@ class NetworkInspectorPluginIntegrationTest {
         try {
             val expectedUrl = "http://127.0.0.1:${server.port}/missing"
             val event = async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(5_000) {
+                withTimeout(5_000.milliseconds) {
                     InspectorEventBus.events.first {
                         it.request.url == expectedUrl && it.response != null
                     }

@@ -4,6 +4,7 @@ import com.cacaosd.networkinspector.core.InspectorEventBus
 import com.cacaosd.networkinspector.testutil.TestHttpServer
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,6 +15,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.milliseconds
 
 class NetworkInspectorInterceptorIntegrationTest {
     @Test
@@ -34,7 +36,7 @@ class NetworkInspectorInterceptorIntegrationTest {
         try {
             val expectedUrl = "http://127.0.0.1:${server.port}/body"
             val event = async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(5_000) {
+                withTimeout(5_000.milliseconds) {
                     InspectorEventBus.events.first {
                         it.request.url == expectedUrl && it.response != null
                     }
@@ -73,7 +75,7 @@ class NetworkInspectorInterceptorIntegrationTest {
         try {
             val expectedUrl = "http://127.0.0.1:${server.port}/stream"
             val event = async(start = CoroutineStart.UNDISPATCHED) {
-                withTimeout(5_000) {
+                withTimeout(5_000.milliseconds) {
                     InspectorEventBus.events.first {
                         it.request.url == expectedUrl && it.response != null
                     }

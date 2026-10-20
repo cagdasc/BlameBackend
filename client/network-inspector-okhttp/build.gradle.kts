@@ -28,8 +28,8 @@ kotlin {
         val jvmAndAndroidMain = create("jvmAndAndroidMain") {
             dependsOn(commonMain)
             dependencies {
-                api(project(":network-inspector-core"))
-                api(libs.okhttp)
+                implementation(project(":network-inspector-core"))
+                implementation(libs.okhttp)
             }
         }
         getByName("jvmMain").dependsOn(jvmAndAndroidMain)

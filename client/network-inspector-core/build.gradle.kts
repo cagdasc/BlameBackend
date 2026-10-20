@@ -40,8 +40,8 @@ kotlin {
         getByName("iosX64Main").dependsOn(nativeMain)
 
         commonMain.dependencies {
-            api(libs.kotlinx.coroutines.core)
-            api(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.network)
         }
 
