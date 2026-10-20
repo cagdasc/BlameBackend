@@ -18,8 +18,76 @@ import {
   Filter,
   Eye,
   Code,
-  Terminal
+  Terminal,
+  Zap
 } from 'lucide-react';
+
+export interface GraphQlDetails {
+  isGraphQl: boolean;
+  operationName: string | null;
+  operationType: string;
+  query: string | null;
+  variables: Record<string, any> | null;
+  hasErrors: boolean;
+  errors: Array<{ message: string; locations?: any[]; path?: any[]; extensions?: any }> | null;
+}
+
+export function extractGraphQlDetails(event: NetworkEvent): GraphQlDetails {
+  let operationName = event.request.operationName || null;
+  let operationType = event.request.operationType || null;
+  let query: string | null = null;
+  let variables: Record<string, any> | null = null;
+
+  if (event.request.body?.content) {
+    try {
+      const parsed = JSON.parse(event.request.body.content);
+      if (parsed.operationName) operationName = operationName || parsed.operationName;
+      if (parsed.query) query = parsed.query;
+      if (parsed.variables) variables = parsed.variables;
+      if (!operationType && query) {
+        const q = String(query).trim();
+        if (q.startsWith('mutation')) operationType = 'mutation';
+        else if (q.startsWith('subscription')) operationType = 'subscription';
+        else if (q.startsWith('query') || q.startsWith('{')) operationType = 'query';
+      }
+    } catch {}
+  }
+
+  if (!operationName) {
+    const headerOp = Object.entries(event.request.headers || {}).find(
+      ([k]) => k.toLowerCase() === 'x-apollo-operation-name'
+    )?.[1];
+    if (headerOp) operationName = headerOp;
+  }
+
+  let hasErrors = false;
+  let errors: any = null;
+  if (event.response?.body?.content) {
+    try {
+      const res = JSON.parse(event.response.body.content);
+      if (Array.isArray(res.errors) && res.errors.length > 0) {
+        hasErrors = true;
+        errors = res.errors;
+      }
+    } catch {}
+  }
+
+  const isGraphQl = Boolean(
+    operationName ||
+    event.request.clientType === 'apollo' ||
+    event.request.url.includes('/graphql')
+  );
+
+  return {
+    isGraphQl,
+    operationName,
+    operationType: operationType || 'query',
+    query,
+    variables,
+    hasErrors,
+    errors
+  };
+}
 
 interface TerminalTuiProps {
   events: NetworkEvent[];
@@ -148,6 +216,8 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
         path: event.request.path,
         protocol: event.response?.protocol || event.request.protocol,
         client: event.request.clientType,
+        operationName: event.request.operationName || null,
+        operationType: event.request.operationType || null,
         headers: event.request.headers,
         body: parsedReqBody ?? null
       },
@@ -297,6 +367,22 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
             POST
           </button>
           <button
+            onClick={() => setFilterText('gql')}
+            className={`px-2 py-0.5 rounded transition-colors ${
+              filterText === 'gql' ? 'bg-indigo-950 text-indigo-300 border border-indigo-700/60 font-semibold' : 'text-indigo-400/80 hover:text-indigo-200'
+            }`}
+          >
+            GQL
+          </button>
+          <button
+            onClick={() => setFilterText('type:mutation')}
+            className={`px-2 py-0.5 rounded transition-colors ${
+              filterText === 'type:mutation' ? 'bg-amber-950 text-amber-300 border border-amber-700/60 font-semibold' : 'text-amber-400/80 hover:text-amber-200'
+            }`}
+          >
+            Mutations
+          </button>
+          <button
             onClick={() => setFilterText('status:4xx')}
             className={`px-2 py-0.5 rounded transition-colors ${
               filterText === 'status:4xx' ? 'bg-neutral-800 text-amber-300 font-semibold' : 'text-neutral-400 hover:text-neutral-200'
@@ -359,6 +445,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
             <div className="divide-y divide-neutral-800/60">
               {filteredEvents.map((event, idx) => {
                 const isSelected = selectedEvent?.id === event.id;
+                const gql = extractGraphQlDetails(event);
                 return (
                   <div
                     key={event.id}
@@ -380,18 +467,52 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                     </span>
 
                     {/* Status Code */}
-                    <span className={`w-10 shrink-0 tabular-nums ${getStatusClass(event)}`}>
-                      {event.status === 'pending'
-                        ? '...'
-                        : event.status === 'error'
-                        ? 'ERR'
-                        : event.response?.statusCode}
-                    </span>
+                    <div className="w-14 shrink-0 flex items-center gap-1">
+                      <span className={`tabular-nums ${gql.hasErrors ? 'text-amber-400 font-semibold' : getStatusClass(event)}`}>
+                        {event.status === 'pending'
+                          ? '...'
+                          : event.status === 'error'
+                          ? 'ERR'
+                          : event.response?.statusCode}
+                      </span>
+                      {gql.hasErrors && (
+                        <span
+                          className="text-[9px] font-bold px-1 py-0.2 rounded bg-rose-950/90 text-rose-300 border border-rose-700/80 shrink-0"
+                          title="GraphQL resolver returned errors in HTTP 200 payload"
+                        >
+                          ERR
+                        </span>
+                      )}
+                    </div>
 
-                    {/* Host & Path */}
-                    <div className="flex-1 min-w-0 truncate">
-                      <span className="text-neutral-400">{event.request.host}</span>
-                      <span className="text-neutral-200">{event.request.path}</span>
+                    {/* Host & Path or GraphQL Operation */}
+                    <div className="flex-1 min-w-0 truncate flex items-center gap-1.5">
+                      {gql.isGraphQl ? (
+                        <>
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded tracking-wide border shrink-0 ${
+                              gql.operationType === 'mutation'
+                                ? 'bg-amber-950/80 text-amber-300 border-amber-700/60'
+                                : gql.operationType === 'subscription'
+                                ? 'bg-purple-950/80 text-purple-300 border-purple-700/60'
+                                : 'bg-indigo-950/80 text-indigo-300 border-indigo-700/60'
+                            }`}
+                          >
+                            GQL {gql.operationType.toUpperCase()}
+                          </span>
+                          <span className="text-cyan-300 font-semibold truncate font-mono text-xs">
+                            {gql.operationName || 'Anonymous'}
+                          </span>
+                          <span className="text-neutral-500 text-[10px] truncate hidden xl:inline">
+                            ({event.request.host}{event.request.path})
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-neutral-400">{event.request.host}</span>
+                          <span className="text-neutral-200">{event.request.path}</span>
+                        </>
+                      )}
                     </div>
 
                     {/* Protocol badge */}
@@ -407,7 +528,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                     </span>
 
                     {/* Client engine badge */}
-                    <span className="text-[10px] text-neutral-500 shrink-0">
+                    <span className={`text-[10px] shrink-0 ${event.request.clientType === 'apollo' ? 'text-indigo-400 font-semibold' : 'text-neutral-500'}`}>
                       {event.request.clientType}
                     </span>
 
@@ -450,7 +571,9 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
 
         {/* Right Pane: Request Details View */}
         <div className="hidden md:flex flex-1 flex-col bg-[#0b0e14] overflow-y-auto">
-          {selectedEvent ? (
+          {selectedEvent ? (() => {
+            const selectedGql = extractGraphQlDetails(selectedEvent);
+            return (
             <div className="flex flex-col h-full">
               {/* Detail Header Bar */}
               <div className="p-4 border-b border-neutral-800 bg-[#0e121a]">
@@ -460,13 +583,38 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
 
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
                       <span className={`text-sm ${getMethodBadgeClass(selectedEvent.request.method)}`}>
                         {selectedEvent.request.method}
                       </span>
-                      <span className="text-neutral-200 text-sm break-all font-semibold select-all">
-                        {selectedEvent.request.url}
-                      </span>
+                      {selectedGql.isGraphQl ? (
+                        <>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                            selectedGql.operationType === 'mutation'
+                              ? 'bg-amber-950 text-amber-300 border-amber-700/80'
+                              : selectedGql.operationType === 'subscription'
+                              ? 'bg-purple-950 text-purple-300 border-purple-700/80'
+                              : 'bg-indigo-950 text-indigo-300 border-indigo-700/80'
+                          }`}>
+                            GQL {selectedGql.operationType}
+                          </span>
+                          <span className="text-white text-base font-bold font-mono tracking-tight select-all">
+                            {selectedGql.operationName || 'Anonymous Operation'}
+                          </span>
+                          <span className="text-neutral-500 text-xs font-mono break-all">
+                            ({selectedEvent.request.url})
+                          </span>
+                          {selectedGql.hasErrors && (
+                            <span className="text-[10px] text-rose-300 bg-rose-950/90 border border-rose-700/80 px-2 py-0.5 rounded font-bold">
+                              Resolver Errors ({selectedGql.errors?.length})
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-neutral-200 text-sm break-all font-semibold select-all">
+                          {selectedEvent.request.url}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3 text-neutral-400 text-[11px]">
@@ -496,7 +644,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                       </span>
                       <span>·</span>
                       <span>
-                        Client: <span className="text-cyan-400">{selectedEvent.request.clientType}</span>
+                        Client: <span className={selectedEvent.request.clientType === 'apollo' ? 'text-indigo-400 font-semibold' : 'text-cyan-400'}>{selectedEvent.request.clientType}</span>
                       </span>
                     </div>
                   </div>
@@ -619,6 +767,76 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                             {selectedEvent.error.stackTrace}
                           </pre>
                         )}
+                      </div>
+                    )}
+
+                    {/* GraphQL Resolver Error Banner */}
+                    {selectedGql.hasErrors && (
+                      <div className="p-3.5 bg-rose-950/40 border border-rose-800 rounded text-rose-200 space-y-2">
+                        <div className="flex items-center gap-2 font-semibold">
+                          <AlertTriangle className="w-4 h-4 text-rose-400" />
+                          <span>GraphQL Resolver Errors ({selectedGql.errors?.length})</span>
+                        </div>
+                        <p className="text-rose-300 text-xs">
+                          HTTP response status was {selectedEvent.response?.statusCode || 200}, but the GraphQL server returned execution errors.
+                        </p>
+                        <div className="space-y-1.5 pt-1">
+                          {selectedGql.errors?.map((err, i) => (
+                            <div key={i} className="text-xs bg-black/40 p-2 rounded border border-rose-900/60 font-mono">
+                              <div className="text-rose-200 font-semibold">{err.message}</div>
+                              {err.path && <div className="text-rose-400 text-[10px]">Path: {JSON.stringify(err.path)}</div>}
+                              {err.locations && <div className="text-rose-400 text-[10px]">Locations: {JSON.stringify(err.locations)}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* GraphQL Operation Details Card */}
+                    {selectedGql.isGraphQl && (
+                      <div className="space-y-2">
+                        <h4 className="text-cyan-400 uppercase tracking-wider text-[11px] font-semibold flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>GraphQL Operation</span>
+                        </h4>
+                        <div className="bg-[#0e121a] rounded border border-indigo-900/60 p-3 space-y-2 text-xs">
+                          <div className="grid grid-cols-4 gap-2">
+                            <span className="text-neutral-500">Operation Name:</span>
+                            <span className="col-span-3 text-cyan-300 font-bold font-mono text-sm">
+                              {selectedGql.operationName || 'Anonymous Operation'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            <span className="text-neutral-500">Operation Type:</span>
+                            <span className="col-span-3">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                                selectedGql.operationType === 'mutation'
+                                  ? 'bg-amber-950 text-amber-300 border-amber-700'
+                                  : selectedGql.operationType === 'subscription'
+                                  ? 'bg-purple-950 text-purple-300 border-purple-700'
+                                  : 'bg-indigo-950 text-indigo-300 border-indigo-700'
+                              }`}>
+                                {selectedGql.operationType}
+                              </span>
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            <span className="text-neutral-500">Endpoint:</span>
+                            <span className="col-span-3 text-neutral-300 font-mono">
+                              {selectedEvent.request.path}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            <span className="text-neutral-500">Resolver Health:</span>
+                            <span className="col-span-3 font-semibold">
+                              {selectedGql.hasErrors ? (
+                                <span className="text-rose-400">Failed ({selectedGql.errors?.length} resolver errors)</span>
+                              ) : (
+                                <span className="text-emerald-400">Clean (0 resolver errors)</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -841,40 +1059,91 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                   <div className="space-y-6">
                     {/* Request Body */}
                     {selectedEvent.request.body && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-neutral-400 uppercase tracking-wider text-[11px] font-semibold">
-                              Request Body
-                            </h4>
-                            <span className="text-neutral-500 tabular-nums text-[11px]">
-                              ({formatBytes(selectedEvent.request.body.sizeBytes)})
-                            </span>
-                            {selectedEvent.request.body.contentType && (
-                              <span className="text-neutral-400 text-[11px]">
-                                · {selectedEvent.request.body.contentType}
+                      <div className="space-y-4">
+                        {/* If GraphQL Query Document is detected */}
+                        {selectedGql.isGraphQl && selectedGql.query && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-cyan-400 uppercase tracking-wider text-[11px] font-semibold flex items-center gap-1.5">
+                                  <Code className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>GraphQL Query Document</span>
+                                </h4>
+                                <span className="text-[10px] text-neutral-500 font-mono">
+                                  [{selectedGql.operationType} {selectedGql.operationName || 'Anonymous'}]
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => copyToClipboard(selectedGql.query || '', 'gql-query')}
+                                className="text-neutral-400 hover:text-neutral-200 text-[11px] flex items-center gap-1"
+                                title="Copy GraphQL Query string"
+                              >
+                                {copiedSection === 'gql-query' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                <span>Copy Query</span>
+                              </button>
+                            </div>
+                            <div className="bg-[#07090e] rounded border border-indigo-950 p-3.5 font-mono text-xs overflow-x-auto">
+                              <pre className="text-cyan-200 whitespace-pre-wrap">{selectedGql.query}</pre>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* If GraphQL Variables are detected */}
+                        {selectedGql.isGraphQl && selectedGql.variables && Object.keys(selectedGql.variables).length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-neutral-400 uppercase tracking-wider text-[11px] font-semibold">
+                                GraphQL Variables
+                              </h4>
+                              <button
+                                onClick={() => copyToClipboard(JSON.stringify(selectedGql.variables, null, 2), 'gql-vars')}
+                                className="text-neutral-400 hover:text-neutral-200 text-[11px] flex items-center gap-1"
+                              >
+                                {copiedSection === 'gql-vars' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                <span>Copy Variables</span>
+                              </button>
+                            </div>
+                            <div className="bg-[#07090e] rounded border border-neutral-800 p-3 font-mono text-xs overflow-x-auto">
+                              <pre className="text-neutral-300">{JSON.stringify(selectedGql.variables, null, 2)}</pre>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-neutral-400 uppercase tracking-wider text-[11px] font-semibold">
+                                {selectedGql.isGraphQl && selectedGql.query ? 'Raw Request JSON' : 'Request Body'}
+                              </h4>
+                              <span className="text-neutral-500 tabular-nums text-[11px]">
+                                ({formatBytes(selectedEvent.request.body.sizeBytes)})
                               </span>
+                              {selectedEvent.request.body.contentType && (
+                                <span className="text-neutral-400 text-[11px]">
+                                  · {selectedEvent.request.body.contentType}
+                                </span>
+                              )}
+                            </div>
+                            {selectedEvent.request.body.content && (
+                              <button
+                                onClick={() =>
+                                  copyToClipboard(
+                                    formatJsonOrRaw(selectedEvent.request.body?.content || ''),
+                                    'req-body'
+                                  )
+                                }
+                                className="text-neutral-400 hover:text-neutral-200 text-[11px] flex items-center gap-1"
+                                title="Copy Request Body as JSON"
+                              >
+                                {copiedSection === 'req-body' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                <span>Copy JSON</span>
+                              </button>
                             )}
                           </div>
-                          {selectedEvent.request.body.content && (
-                            <button
-                              onClick={() =>
-                                copyToClipboard(
-                                  formatJsonOrRaw(selectedEvent.request.body?.content || ''),
-                                  'req-body'
-                                )
-                              }
-                              className="text-neutral-400 hover:text-neutral-200 text-[11px] flex items-center gap-1"
-                              title="Copy Request Body as JSON"
-                            >
-                              {copiedSection === 'req-body' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                              <span>Copy JSON</span>
-                            </button>
-                          )}
-                        </div>
 
-                        <div className="bg-[#07090e] rounded border border-neutral-800 p-3.5 font-mono text-xs overflow-x-auto">
-                          <pre className="text-neutral-200">{selectedEvent.request.body.content}</pre>
+                          <div className="bg-[#07090e] rounded border border-neutral-800 p-3.5 font-mono text-xs overflow-x-auto">
+                            <pre className="text-neutral-200">{formatJsonOrRaw(selectedEvent.request.body.content)}</pre>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1010,7 +1279,8 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
                 )}
               </div>
             </div>
-          ) : (
+          );
+        })() : (
             <div className="flex flex-col items-center justify-center h-full p-8 text-neutral-500">
               <Eye className="w-10 h-10 mb-3 text-neutral-600" />
               <p className="font-semibold text-neutral-400 mb-1">Select a request to inspect</p>

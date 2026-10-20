@@ -9,7 +9,8 @@ import {
   Image as ImageIcon,
   Layers,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
 
 interface RequestSimulatorProps {
@@ -34,6 +35,9 @@ export const RequestSimulator: React.FC<RequestSimulatorProps> = ({ onEventTrigg
   const runAllScenarios = async () => {
     setRunningId('all');
     try {
+      await simulator.triggerApolloQueryListUsers();
+      await simulator.triggerApolloMutationCreatePost();
+      await simulator.triggerApolloResolverError();
       await simulator.triggerOkHttpUserList();
       await simulator.triggerOkHttpPayment();
       await simulator.triggerKtorNotFound();
@@ -50,6 +54,39 @@ export const RequestSimulator: React.FC<RequestSimulatorProps> = ({ onEventTrigg
   };
 
   const scenarios = [
+    {
+      id: 'apollo-query-users',
+      title: 'Apollo GQL: Query ListUsers',
+      client: 'Apollo Kotlin 4.1',
+      method: 'POST',
+      url: 'https://graphqlplaceholder.vercel.app/graphql [op: ListUsers]',
+      badge: 'GQL Query (200 OK)',
+      description: 'GraphQL query with operationName: "ListUsers". Demonstrates operation name labeling instead of generic /graphql.',
+      icon: Zap,
+      action: () => simulator.triggerApolloQueryListUsers()
+    },
+    {
+      id: 'apollo-mutation-create-post',
+      title: 'Apollo GQL: Mutation CreatePost',
+      client: 'Apollo Kotlin 4.1',
+      method: 'POST',
+      url: 'https://graphqlplaceholder.vercel.app/graphql [op: CreatePost]',
+      badge: 'GQL Mutation',
+      description: 'GraphQL mutation with variables and operationName: "CreatePost". Demonstrates mutation badge and variables inspection.',
+      icon: Zap,
+      action: () => simulator.triggerApolloMutationCreatePost()
+    },
+    {
+      id: 'apollo-resolver-error',
+      title: 'Apollo GQL: Resolver Error (HTTP 200 with Errors)',
+      client: 'Apollo Kotlin 4.1',
+      method: 'POST',
+      url: 'https://graphqlplaceholder.vercel.app/graphql [op: UserBillingProfile]',
+      badge: 'GQL Resolver Failure',
+      description: 'The classic GraphQL trap: HTTP status 200 OK, but payload contains errors array. BlameBackend flags this with GQL ERR.',
+      icon: AlertTriangle,
+      action: () => simulator.triggerApolloResolverError()
+    },
     {
       id: 'okhttp-get-users',
       title: 'OkHttp: GET Users List',

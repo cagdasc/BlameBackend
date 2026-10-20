@@ -151,6 +151,29 @@ async function startServer() {
               event.appName = session.deviceInfo?.appName || '';
               event.osVersion = session.deviceInfo?.osVersion || '';
 
+              // Auto-enrich GraphQL operation name and type if not already populated on wire
+              if (event.request && !event.request.operationName) {
+                const headerOp = Object.entries(event.request.headers || {}).find(
+                  ([k]) => k.toLowerCase() === 'x-apollo-operation-name'
+                )?.[1];
+                if (headerOp) {
+                  event.request.operationName = headerOp;
+                } else if (event.request.body?.content) {
+                  try {
+                    const parsed = JSON.parse(event.request.body.content);
+                    if (parsed.operationName) {
+                      event.request.operationName = parsed.operationName;
+                    }
+                    if (!event.request.operationType && parsed.query) {
+                      const q = String(parsed.query).trim();
+                      if (q.startsWith('mutation')) event.request.operationType = 'mutation';
+                      else if (q.startsWith('subscription')) event.request.operationType = 'subscription';
+                      else if (q.startsWith('query') || q.startsWith('{')) event.request.operationType = 'query';
+                    }
+                  } catch {}
+                }
+              }
+
               broadcastSse({
                 type: 'NETWORK_EVENT',
                 event,

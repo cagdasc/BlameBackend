@@ -54,7 +54,9 @@ data class NetworkRequestDto(
     val protocol: String,
     val headers: Map<String, String>,
     val body: PayloadDto? = null,
-    val clientType: String
+    val clientType: String,
+    val operationName: String? = null,
+    val operationType: String? = null
 )
 
 @Serializable

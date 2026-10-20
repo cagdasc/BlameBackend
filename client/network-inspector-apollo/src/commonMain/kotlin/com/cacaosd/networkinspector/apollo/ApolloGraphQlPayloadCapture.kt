@@ -14,7 +14,52 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 
+data class GraphQlOperationMetadata(
+    val operationName: String? = null,
+    val operationType: String? = null,
+)
+
 internal object ApolloGraphQlPayloadCapture {
+    fun extractOperationMetadata(bytes: ByteArray): GraphQlOperationMetadata {
+        val body = try {
+            Json.parseToJsonElement(bytes.decodeToString()) as? JsonObject
+        } catch (_: Exception) {
+            null
+        } ?: return GraphQlOperationMetadata()
+
+        val operationName = (body["operationName"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+        val query = (body["query"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+        val operationType = detectOperationType(query)
+        return GraphQlOperationMetadata(operationName, operationType)
+    }
+
+    fun extractOperationMetadataFromUrl(url: String): GraphQlOperationMetadata {
+        val encodedQuery = url.substringAfter('?', "").substringBefore('#')
+        if (encodedQuery.isEmpty()) return GraphQlOperationMetadata()
+        var opName: String? = null
+        var queryStr: String? = null
+        for (part in encodedQuery.split('&')) {
+            val separator = part.indexOf('=')
+            if (separator < 0) continue
+            val name = part.substring(0, separator).decodeQueryComponent() ?: continue
+            val value = part.substring(separator + 1).decodeQueryComponent() ?: continue
+            if (name == "operationName") opName = value
+            if (name == "query") queryStr = value
+        }
+        return GraphQlOperationMetadata(opName, detectOperationType(queryStr))
+    }
+
+    fun detectOperationType(query: String?): String? {
+        if (query.isNullOrBlank()) return null
+        val trimmed = query.trimStart()
+        return when {
+            trimmed.startsWith("mutation", ignoreCase = true) -> "mutation"
+            trimmed.startsWith("subscription", ignoreCase = true) -> "subscription"
+            trimmed.startsWith("query", ignoreCase = true) -> "query"
+            trimmed.startsWith("{") -> "query"
+            else -> null
+        }
+    }
     fun requestBody(
         bytes: ByteArray,
         size: Long,

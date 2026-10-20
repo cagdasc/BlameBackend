@@ -41,10 +41,12 @@ export class AndroidNetworkSimulator {
    * Simulates an in-flight request start, followed by an asynchronous response or error.
    */
   public async executeRequest(params: {
-    clientType: 'okhttp' | 'ktor';
+    clientType: 'okhttp' | 'ktor' | 'apollo' | string;
     method: HttpMethod;
     url: string;
     protocol?: string;
+    operationName?: string;
+    operationType?: 'query' | 'mutation' | 'subscription' | string;
     requestHeaders?: Record<string, string>;
     requestBody?: string | Uint8Array;
     requestContentType?: string;
@@ -64,7 +66,7 @@ export class AndroidNetworkSimulator {
     // Apply header redaction for request
     const { redacted: safeRequestHeaders } = defaultRedactor.redactHeaders(
       params.requestHeaders || {
-        'User-Agent': params.clientType === 'okhttp' ? 'okhttp/4.12.0 Android' : 'ktor-client/3.0.1 Android',
+        'User-Agent': params.clientType === 'apollo' ? 'apollo-kotlin/4.1.0' : params.clientType === 'okhttp' ? 'okhttp/4.12.0 Android' : 'ktor-client/3.0.1 Android',
         'Accept': 'application/json',
         'Connection': 'keep-alive'
       }
@@ -84,7 +86,9 @@ export class AndroidNetworkSimulator {
       protocol: params.protocol || (params.clientType === 'okhttp' ? 'HTTP/2.0' : 'HTTP/1.1'),
       headers: safeRequestHeaders,
       body: reqPayload,
-      clientType: params.clientType
+      clientType: params.clientType,
+      operationName: params.operationName || null,
+      operationType: params.operationType || null
     };
 
     const initialEvent: NetworkEvent = {
@@ -388,6 +392,163 @@ export class AndroidNetworkSimulator {
         })
       )
     );
+  }
+
+  public async triggerApolloQueryListUsers() {
+    const query = `query ListUsers {
+  users {
+    id
+    name
+    username
+    email
+  }
+}`;
+    const response = {
+      data: {
+        users: [
+          { id: "1", name: "Leanne Graham", username: "Bret", email: "Sincere@april.biz" },
+          { id: "2", name: "Ervin Howell", username: "Antonette", email: "Shanna@melissa.tv" },
+          { id: "3", name: "Clementine Bauch", username: "Samantha", email: "Nathan@yesenia.net" }
+        ]
+      }
+    };
+
+    return this.executeRequest({
+      clientType: 'apollo',
+      method: 'POST',
+      url: 'https://graphqlplaceholder.vercel.app/graphql',
+      operationName: 'ListUsers',
+      operationType: 'query',
+      delayMs: 140,
+      statusCode: 200,
+      requestHeaders: {
+        'Content-Type': 'application/json',
+        'X-APOLLO-OPERATION-NAME': 'ListUsers',
+        'X-APOLLO-OPERATION-ID': 'b43f9a72c1d8',
+        'User-Agent': 'apollo-kotlin/4.1.0'
+      },
+      requestBody: JSON.stringify({
+        operationName: 'ListUsers',
+        query,
+        variables: {}
+      }, null, 2),
+      responseHeaders: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-Cache': 'MISS'
+      },
+      responseBody: JSON.stringify(response, null, 2)
+    });
+  }
+
+  public async triggerApolloMutationCreatePost() {
+    const query = `mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    id
+    title
+    body
+    userId
+  }
+}`;
+    const variables = {
+      input: {
+        title: "Announcing BlameBackend GraphQL Support",
+        body: "Real-time inspection with zero semantics alteration and operation names.",
+        userId: 1
+      }
+    };
+    const response = {
+      data: {
+        createPost: {
+          id: "101",
+          title: "Announcing BlameBackend GraphQL Support",
+          body: "Real-time inspection with zero semantics alteration and operation names.",
+          userId: 1
+        }
+      }
+    };
+
+    return this.executeRequest({
+      clientType: 'apollo',
+      method: 'POST',
+      url: 'https://graphqlplaceholder.vercel.app/graphql',
+      operationName: 'CreatePost',
+      operationType: 'mutation',
+      delayMs: 220,
+      statusCode: 200,
+      requestHeaders: {
+        'Content-Type': 'application/json',
+        'X-APOLLO-OPERATION-NAME': 'CreatePost',
+        'X-APOLLO-OPERATION-ID': 'e82b71fa09cd',
+        'User-Agent': 'apollo-kotlin/4.1.0'
+      },
+      requestBody: JSON.stringify({
+        operationName: 'CreatePost',
+        query,
+        variables
+      }, null, 2),
+      responseHeaders: {
+        'Content-Type': 'application/json; charset=utf-8'
+      },
+      responseBody: JSON.stringify(response, null, 2)
+    });
+  }
+
+  public async triggerApolloResolverError() {
+    const query = `query UserBillingProfile($userId: ID!) {
+  user(id: $userId) {
+    id
+    name
+    creditCardNumber
+    billingAccount
+  }
+}`;
+    const variables = { userId: "user-404" };
+    // Classic GraphQL HTTP 200 with resolver errors!
+    const response = {
+      data: {
+        user: {
+          id: "user-404",
+          name: "Alex Doe",
+          creditCardNumber: null,
+          billingAccount: null
+        }
+      },
+      errors: [
+        {
+          message: "Unauthorized: Insufficient permissions to read field 'creditCardNumber' on type 'User'",
+          locations: [{ line: 5, column: 5 }],
+          path: ["user", "creditCardNumber"],
+          extensions: {
+            code: "FORBIDDEN",
+            field: "creditCardNumber"
+          }
+        }
+      ]
+    };
+
+    return this.executeRequest({
+      clientType: 'apollo',
+      method: 'POST',
+      url: 'https://graphqlplaceholder.vercel.app/graphql',
+      operationName: 'UserBillingProfile',
+      operationType: 'query',
+      delayMs: 180,
+      statusCode: 200,
+      requestHeaders: {
+        'Content-Type': 'application/json',
+        'X-APOLLO-OPERATION-NAME': 'UserBillingProfile',
+        'User-Agent': 'apollo-kotlin/4.1.0'
+      },
+      requestBody: JSON.stringify({
+        operationName: 'UserBillingProfile',
+        query,
+        variables
+      }, null, 2),
+      responseHeaders: {
+        'Content-Type': 'application/json; charset=utf-8'
+      },
+      responseBody: JSON.stringify(response, null, 2)
+    });
   }
 }
 

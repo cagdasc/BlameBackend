@@ -160,7 +160,9 @@ When an HTTP transaction occurs, the client dispatches a `NetworkEventDto` seria
 | `protocol` | `String` | `string` | `"protocol"` | No | Wire protocol (e.g., `"HTTP/1.1"`, `"h2"`, `"HTTP/2.0"`) |
 | `headers` | `Map<String, String>` | `Record<string, string>` | `"headers"` | No | Redacted header map (all sensitive headers masked) |
 | `body` | `PayloadDto?` | `Payload \| null` | `"body"` | Yes | Null if request has no body |
-| `clientType` | `String` | `'okhttp' \| 'ktor' \| string`| `"clientType"` | No | Originating client library (`"okhttp"` or `"ktor"`) |
+| `clientType` | `String` | `'okhttp' \| 'ktor' \| 'apollo' \| string`| `"clientType"` | No | Originating client library (`"okhttp"`, `"ktor"`, `"apollo"`) |
+| `operationName` | `String?` | `string \| null` | `"operationName"` | Yes | GraphQL operation name (e.g., `"ListUsers"`, `"CreatePost"`) |
+| `operationType` | `String?` | `'query' \| 'mutation' \| 'subscription' \| string \| null` | `"operationType"` | Yes | GraphQL operation type (`"query"`, `"mutation"`, `"subscription"`) |
 
 ---
 

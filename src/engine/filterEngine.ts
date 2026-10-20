@@ -16,7 +16,20 @@ export function parseFilterQuery(raw: string): FilterCriteria {
     } else if (token.startsWith('method:')) {
       criteria.method = token.slice(7).toUpperCase();
     } else if (token.startsWith('status:')) {
-      criteria.status = token.slice(7).toLowerCase();
+      const st = token.slice(7).toLowerCase();
+      if (st === 'gql-error' || st === 'gql-err' || st === 'gqlerr') {
+        criteria.hasGraphQlError = true;
+      } else {
+        criteria.status = st;
+      }
+    } else if (token.startsWith('op:') || token.startsWith('operation:')) {
+      criteria.operation = token.slice(token.indexOf(':') + 1).toLowerCase();
+    } else if (token.startsWith('type:')) {
+      criteria.operationType = token.slice(5).toLowerCase();
+    } else if (token === 'gql' || token === 'graphql' || token === 'is:gql' || token === 'is:graphql') {
+      criteria.isGraphQl = true;
+    } else if (token === 'has:gql-errors' || token === 'gql-error') {
+      criteria.hasGraphQlError = true;
     } else if (token.startsWith('device:')) {
       criteria.device = token.slice(7).toLowerCase();
     } else if (token.startsWith('protocol:')) {
@@ -93,11 +106,59 @@ export function matchesFilter(event: NetworkEvent, criteria: FilterCriteria): bo
     }
   }
 
-  // Filter by general search string across URL, headers, and body
+  // Filter by GraphQL operation name
+  if (criteria.operation) {
+    const op = event.request.operationName?.toLowerCase() || '';
+    if (!op.includes(criteria.operation)) {
+      return false;
+    }
+  }
+
+  // Filter by GraphQL operation type (query, mutation, subscription)
+  if (criteria.operationType) {
+    const type = event.request.operationType?.toLowerCase() || '';
+    if (!type.includes(criteria.operationType)) {
+      return false;
+    }
+  }
+
+  // Filter by isGraphQl flag
+  if (criteria.isGraphQl) {
+    const isGql = Boolean(
+      event.request.operationName ||
+      event.request.clientType === 'apollo' ||
+      event.request.url.includes('/graphql')
+    );
+    if (!isGql) return false;
+  }
+
+  // Filter by hasGraphQlError flag
+  if (criteria.hasGraphQlError) {
+    let hasGqlErr = false;
+    if (event.response?.body?.content) {
+      try {
+        const parsed = JSON.parse(event.response.body.content);
+        if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
+          hasGqlErr = true;
+        }
+      } catch {}
+    }
+    if (!hasGqlErr) return false;
+  }
+
+  // Filter by general search string across URL, headers, operation, and body
   if (criteria.search) {
     const term = criteria.search;
     const urlMatch = event.request.url.toLowerCase().includes(term);
     if (urlMatch) return true;
+
+    // Check operation name and type
+    if (event.request.operationName && event.request.operationName.toLowerCase().includes(term)) {
+      return true;
+    }
+    if (event.request.operationType && event.request.operationType.toLowerCase().includes(term)) {
+      return true;
+    }
 
     // Check protocol (response protocol or request protocol)
     const activeProto = (event.response?.protocol || event.request.protocol || '').toLowerCase();

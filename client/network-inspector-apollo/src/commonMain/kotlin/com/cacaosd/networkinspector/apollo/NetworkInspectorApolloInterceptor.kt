@@ -23,6 +23,21 @@ class NetworkInspectorApolloInterceptor(
         chain: HttpInterceptorChain,
     ): HttpResponse {
         val safeUrl = ApolloUrlSanitizer.sanitize(request.url)
+
+        val headerOpName = request.headers.firstOrNull {
+            it.name.equals("X-APOLLO-OPERATION-NAME", ignoreCase = true)
+        }?.value
+        val urlMetadata = if (request.method == HttpMethod.Get) {
+            ApolloGraphQlPayloadCapture.extractOperationMetadataFromUrl(request.url)
+        } else null
+
+        val bodyByteMetadata = (request.body as? com.apollographql.apollo.api.http.ByteStringHttpBody)?.let {
+            ApolloGraphQlPayloadCapture.extractOperationMetadata(it.byteString.toByteArray())
+        }
+
+        val initialOpName = headerOpName ?: urlMetadata?.operationName ?: bodyByteMetadata?.operationName
+        val initialOpType = urlMetadata?.operationType ?: bodyByteMetadata?.operationType
+
         val capture = NetworkEventCapture(
             method = request.method.name.uppercase(),
             url = safeUrl,
@@ -31,6 +46,8 @@ class NetworkInspectorApolloInterceptor(
             protocol = "",
             headers = request.headers.toHeaderMap(),
             clientType = "apollo",
+            operationName = initialOpName,
+            operationType = initialOpType,
         )
         InspectorEventBus.dispatch(capture.requestEvent())
         val inspectedRequest = inspectRequest(request, capture)
@@ -65,8 +82,15 @@ class NetworkInspectorApolloInterceptor(
         val body = request.body
         if (body == null) {
             if (request.method == HttpMethod.Get) {
-                ApolloGraphQlPayloadCapture.getRequest(request.url, config)
-                    ?.let { InspectorEventBus.dispatch(capture.updateRequestBody(it)) }
+                val metadata = ApolloGraphQlPayloadCapture.extractOperationMetadataFromUrl(request.url)
+                val payload = ApolloGraphQlPayloadCapture.getRequest(request.url, config)
+                InspectorEventBus.dispatch(
+                    capture.updateGraphQlDetails(
+                        operationName = metadata.operationName,
+                        operationType = metadata.operationType,
+                        body = payload,
+                    )
+                )
             }
             return request
         }
@@ -74,8 +98,15 @@ class NetworkInspectorApolloInterceptor(
         return request.newBuilder()
             .body(
                 CapturingApolloHttpBody(body, config.captureLimit) { bytes, size ->
-                    ApolloGraphQlPayloadCapture.requestBody(bytes, size, body.contentType, config)
-                        ?.let { InspectorEventBus.dispatch(capture.updateRequestBody(it)) }
+                    val metadata = ApolloGraphQlPayloadCapture.extractOperationMetadata(bytes)
+                    val payload = ApolloGraphQlPayloadCapture.requestBody(bytes, size, body.contentType, config)
+                    InspectorEventBus.dispatch(
+                        capture.updateGraphQlDetails(
+                            operationName = metadata.operationName,
+                            operationType = metadata.operationType,
+                            body = payload,
+                        )
+                    )
                 }
             )
             .build()

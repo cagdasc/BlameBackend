@@ -66,6 +66,8 @@ class NetworkInspectorApolloInterceptorTest {
         val requestPayload = assertNotNull(captured.request.body).content.orEmpty()
         val responsePayload = assertNotNull(captured.response?.body).content.orEmpty()
 
+        assertEquals("LookupUser", captured.request.operationName)
+        assertEquals("query", captured.request.operationType)
         assertTrue(requestPayload.contains("LookupUser"))
         assertTrue(requestPayload.contains("user-1"))
         assertTrue(requestPayload.contains("<redacted>"))
@@ -144,6 +146,8 @@ class NetworkInspectorApolloInterceptorTest {
 
         val captured = event.await()
         val requestPayload = assertNotNull(captured.request.body).content.orEmpty()
+        assertEquals("GetUsers", captured.request.operationName)
+        assertEquals("query", captured.request.operationType)
         assertTrue(requestPayload.contains("GetUsers"))
         assertTrue(requestPayload.contains("query"))
         assertTrue(requestPayload.contains("<redacted>"))

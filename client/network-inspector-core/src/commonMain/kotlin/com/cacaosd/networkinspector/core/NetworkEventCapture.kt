@@ -18,6 +18,8 @@ class NetworkEventCapture(
     protocol: String,
     headers: Map<String, String>,
     clientType: String,
+    operationName: String? = null,
+    operationType: String? = null,
 ) {
     private val startTime: TimeMark = TimeSource.Monotonic.markNow()
     private val timestamp = Clock.System.now().toEpochMilliseconds()
@@ -34,6 +36,8 @@ class NetworkEventCapture(
         protocol = protocol,
         headers = InspectorEventBus.redactor.redact(headers),
         clientType = clientType,
+        operationName = operationName,
+        operationType = operationType,
     )
         private set
 
@@ -45,6 +49,19 @@ class NetworkEventCapture(
 
     fun updateRequestBody(body: PayloadDto): NetworkEventDto {
         request = request.copy(body = body)
+        return requestEvent()
+    }
+
+    fun updateGraphQlDetails(
+        operationName: String? = null,
+        operationType: String? = null,
+        body: PayloadDto? = null,
+    ): NetworkEventDto {
+        request = request.copy(
+            operationName = operationName ?: request.operationName,
+            operationType = operationType ?: request.operationType,
+            body = body ?: request.body,
+        )
         return requestEvent()
     }
 

@@ -74,7 +74,9 @@ export interface NetworkRequestDto {
   protocol: string;
   headers: Record<string, string>;
   body: PayloadDto | null;
-  clientType: 'okhttp' | 'ktor' | string;
+  clientType: 'okhttp' | 'ktor' | 'apollo' | string;
+  operationName?: string | null;
+  operationType?: 'query' | 'mutation' | 'subscription' | string | null;
 }
 
 export type NetworkRequest = NetworkRequestDto;
@@ -165,4 +167,8 @@ export interface FilterCriteria {
   device?: string;
   protocol?: string;
   search?: string;
+  operation?: string;
+  operationType?: string;
+  isGraphQl?: boolean;
+  hasGraphQlError?: boolean;
 }

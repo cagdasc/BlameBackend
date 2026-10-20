@@ -35,6 +35,8 @@ interface NetworkEventDto {
     protocol: string;
     headers: Record<string, string>;
     clientType: string;
+    operationName?: string | null;
+    operationType?: string | null;
     body?: {
       contentType: string | null;
       sizeBytes: number;
@@ -187,7 +189,11 @@ function renderTerminalEvent(event: NetworkEventDto) {
   const protoBadge = `\x1b[35m${protocol.padEnd(8)}\x1b[0m`;
   const client = `[${event.request.clientType}]`;
 
-  console.log(`${method} ${status}  ${protoBadge} ${hostAndPath.padEnd(40)} \x1b[90m${client}\x1b[0m \x1b[36m${duration}\x1b[0m`);
+  const gqlBadge = event.request.operationName
+    ? ` \x1b[36m[GQL ${event.request.operationType || 'query'}: \x1b[1m${event.request.operationName}\x1b[0m\x1b[36m]\x1b[0m`
+    : '';
+
+  console.log(`${method} ${status}  ${protoBadge} ${hostAndPath.padEnd(36)}${gqlBadge} \x1b[90m${client}\x1b[0m \x1b[36m${duration}\x1b[0m`);
 
   // If there's an error, print it
   if (event.error) {
