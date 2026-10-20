@@ -176,7 +176,7 @@ export const TerminalTui: React.FC<TerminalTuiProps> = ({
   };
 
   // Method color map
-  const getMethodBadgeClass = (method: HttpMethod) => {
+  const getMethodBadgeClass = (method: HttpMethod | string) => {
     switch (method) {
       case 'GET':
         return 'text-cyan-400 font-semibold';

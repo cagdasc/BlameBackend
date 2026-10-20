@@ -72,7 +72,7 @@ BlameBackend is a real-time, zero-semantics-alteration network inspection system
 - **Keep `commonMain` Pure**: Keep business logic and protocol models in `commonMain` without platform imports (`java.io.*`, `android.util.*`).
 - **Cap Body Buffering**: Enforce a strict 64 KB cap (`64 * 1024L`). Set `truncated = true` when exceeded.
 - **Hex Preview for Binaries**: Detect binary MIME types and generate safe hex dumps (`hexPreview`) instead of corrupting text decoders.
-- **Sanitize Shell Inputs**: Always validate device serials with `/^[a-zA-Z0-9.:_-]+$/` before passing to child processes.
+- **Maintain Data Model Agreement**: Keep 1:1 parity between Kotlin DTOs in `Protocol.kt` and TypeScript interfaces in `src/types/inspector.ts`. Consult the `data-model-agreement` skill (`skills/data-model-agreement/SKILL.md`) and keep `docs/DATA_MODEL_AGREEMENT.md` updated after any change.
 
 ### Ask First
 - Changing the wire envelope JSON schema (`WireEnvelope`, `MessageType`, `PROTOCOL_VERSION`).
@@ -81,6 +81,7 @@ BlameBackend is a real-time, zero-semantics-alteration network inspection system
 - Modifying Gradle release publishing configuration in `jitpack.yml` or root `build.gradle.kts`.
 
 ### Never Do (Strict Prohibitions)
+- **NEVER** introduce or modify data models on one platform (Kotlin or TypeScript) without simultaneously synchronizing the other and updating `docs/DATA_MODEL_AGREEMENT.md`.
 - **NEVER** call `response.body?.string()` or read unbuffered streams destructively.
 - **NEVER** swallow network exceptions or return mock/fabricated 500 responses when network requests fail.
 - **NEVER** perform blocking socket writes on the main UI thread or caller thread; use `Dispatchers.IO`.
@@ -151,11 +152,13 @@ socket.on('data', (chunk) => {
 ├── .cursorrules               # Cursor IDE rules file
 ├── README.md                  # Human-readable documentation & demo video
 ├── docs/
+│   ├── DATA_MODEL_AGREEMENT.md # Authoritative client-server schema parity contract
 │   ├── TECH_STACK.md          # Deep-dive tech stack & wire protocol specification
 │   └── CODING_HABITS.md       # Developer habits companion & PR checklist
 ├── skills/
-│   └── developer-habits/
-│       ├── SKILL.md           # Reusable skill for agent environments
+│   ├── data-model-agreement/  # Skill for managing client/server schema parity
+│   └── developer-habits/      # Reusable skill for agent environments
+│       ├── SKILL.md           # Developer habits and strict invariants
 │       └── references/        # Detailed KMP & Node architecture references
 ├── client/
 │   ├── network-inspector/     # Core KMP library (commonMain, jvmAndAndroid, etc.)
@@ -165,6 +168,17 @@ socket.on('data', (chunk) => {
 ├── server.ts                  # Node.js daemon (Raw TCP 10245, SSE, Express)
 └── desktop-cli.ts             # Headless shell streaming CLI
 ```
+
+---
+
+## Data Model Agreement Protocol for Agents
+
+Whenever modifying any data model on client (Kotlin) or server (TypeScript):
+1. **Update Kotlin DTO**: `client/network-inspector-core/.../protocol/Protocol.kt`
+2. **Update TypeScript Types**: `src/types/inspector.ts`
+3. **Update Wire Handlers**: `server.ts` / `desktop-cli.ts` (if envelope changes)
+4. **Update Documentation**: `docs/DATA_MODEL_AGREEMENT.md`
+5. **Verify Parity**: Follow the checklist in `skills/data-model-agreement/SKILL.md` to ensure complete client-server parity.
 
 ---
 
