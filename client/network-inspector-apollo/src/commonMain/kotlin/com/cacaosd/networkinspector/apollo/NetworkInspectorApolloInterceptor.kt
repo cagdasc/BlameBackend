@@ -31,12 +31,8 @@ class NetworkInspectorApolloInterceptor(
             ApolloGraphQlPayloadCapture.extractOperationMetadataFromUrl(request.url)
         } else null
 
-        val bodyByteMetadata = (request.body as? com.apollographql.apollo.api.http.ByteStringHttpBody)?.let {
-            ApolloGraphQlPayloadCapture.extractOperationMetadata(it.byteString.toByteArray())
-        }
-
-        val initialOpName = headerOpName ?: urlMetadata?.operationName ?: bodyByteMetadata?.operationName
-        val initialOpType = urlMetadata?.operationType ?: bodyByteMetadata?.operationType
+        val initialOpName = headerOpName ?: urlMetadata?.operationName
+        val initialOpType = urlMetadata?.operationType
 
         val capture = NetworkEventCapture(
             method = request.method.name.uppercase(),

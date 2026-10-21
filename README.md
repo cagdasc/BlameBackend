@@ -216,6 +216,14 @@ The Compose sample separates **REST · Ktor** and **GraphQL · Apollo** examples
 
 *Desktop and iOS simulator apps connect directly to `127.0.0.1:10245` without requiring ADB.*
 
+**Linux Native sample:**
+```bash
+cd client
+./gradlew :composeApp:runKtorDebugExecutableLinuxX64
+./gradlew :composeApp:runApolloDebugExecutableLinuxX64
+```
+These are separate Linux Native apps: the Ktor app runs REST examples, and the Apollo app runs GraphQLPlaceholder queries. Both connect to the inspector independently.
+
 ### 6. Terminal CLI Preview
 
 ```bash

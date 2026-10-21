@@ -34,8 +34,11 @@ kotlin {
     jvm()
     linuxX64 {
         binaries {
-            executable {
-                entryPoint = "com.cacaosd.blamebackend.linux.main"
+            executable("ktor") {
+                entryPoint = "com.cacaosd.blamebackend.linux.ktorMain"
+            }
+            executable("apollo") {
+                entryPoint = "com.cacaosd.blamebackend.linux.apolloMain"
             }
         }
     }
@@ -49,20 +52,22 @@ kotlin {
                 implementation(compose.foundation)
                 implementation(compose.material3)
                 implementation(compose.ui)
-                implementation(libs.ktor.client.core)
-                implementation(libs.ktor.client.content.negotiation)
-                implementation(libs.ktor.serialization.kotlinx.json)
-                implementation(libs.kotlinx.serialization.json)
-                implementation(project(":network-inspector-apollo"))
+
             }
         }
         getByName("androidMain").dependsOn(composeMain)
         getByName("jvmMain").dependsOn(composeMain)
 
         commonMain.dependencies {
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.apollo.runtime)
+
             implementation(project(":network-inspector-core"))
             implementation(project(":network-inspector-ktor"))
-            implementation(libs.apollo.runtime)
+            implementation(project(":network-inspector-apollo"))
         }
 
         getByName("androidMain").dependencies {
@@ -84,6 +89,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.curl)
+            implementation(project(":network-inspector-apollo"))
         }
 
         jvmTest.dependencies {

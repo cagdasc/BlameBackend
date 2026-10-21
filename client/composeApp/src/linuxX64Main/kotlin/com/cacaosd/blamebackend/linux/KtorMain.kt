@@ -15,12 +15,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 
-fun main() = runBlocking {
+fun ktorMain() = runBlocking {
     NetworkInspector.install(
         HelloPayload(
             deviceName = "Linux",
             osVersion = "Kotlin/Native linuxX64",
-            appName = "BlameBackend-LinuxNative",
+            appName = "BlameBackend-Linux-Ktor",
             appVersion = "0.0.1",
         )
     )
