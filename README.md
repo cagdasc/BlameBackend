@@ -5,7 +5,7 @@ BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform
 
 ⚠️ **Note:** Vibe coded. No idea where it goes.
 
-https://github.com/user-attachments/assets/7ae5331e-1eea-4cbf-94d4-2880ddb94b15
+https://github.com/user-attachments/assets/8119ef04-51bf-4632-861b-54b16a797e3a
 
 ---
 
