@@ -1,10 +1,10 @@
 # BlameBackend [![](https://jitpack.io/v/cagdasc/BlameBackend.svg)](https://jitpack.io/#cagdasc/BlameBackend)
 
-**Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor, OkHttp, and Apollo GraphQL.**
-BlameBackend captures HTTP/HTTPS traffic directly from your Kotlin Multiplatform apps (Android, iOS, JVM, and Linux) over a local TCP socket, streaming requests, responses, headers, and timings straight into a modern terminal-style web console or headless shell CLI.
+**Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor, OkHttp, and Apollo GraphQL (v0.0.3) with WebSocket Stream Inspection.**
+BlameBackend captures HTTP/HTTPS and WebSocket traffic directly from your Kotlin Multiplatform apps (Android, iOS, JVM, and Linux) over a local TCP socket, streaming requests, responses, GraphQL operations, and duplex WebSocket frames straight into a modern terminal-style web console or headless shell CLI.
 
-⚠️ **Note:** Vibe coded. No idea where it goes.
-
+*Version 0.0.3 Demo (Apollo GraphQL & Interactive Console):*
+assets/blamebackend_demo-0_0_3.mp4
 https://github.com/user-attachments/assets/8119ef04-51bf-4632-861b-54b16a797e3a
 
 ---

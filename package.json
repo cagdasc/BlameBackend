@@ -1,7 +1,7 @@
 {
   "name": "blamebackend",
-  "version": "0.0.1",
-  "description": "Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor and OkHttp (Android, iOS, Desktop, Server)",
+  "version": "0.0.3",
+  "description": "Real-time Kotlin Multiplatform Network Inspector & Terminal TUI for Ktor, OkHttp, and Apollo GraphQL (Android, iOS, Desktop, Server) with WebSocket stream inspection",
   "type": "module",
   "repository": {
     "type": "git",

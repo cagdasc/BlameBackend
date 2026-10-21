@@ -17,7 +17,7 @@ const ADB_HOST = '127.0.0.1';
 const ADB_PORT = 10245;
 
 interface WireEnvelope {
-  type: 'HELLO' | 'NETWORK_EVENT' | 'PING' | 'PONG' | 'GOODBYE';
+  type: 'HELLO' | 'NETWORK_EVENT' | 'PING' | 'PONG' | 'GOODBYE' | 'WS_OPEN' | 'WS_FRAME' | 'WS_CLOSE' | 'WS_ERROR';
   version: number;
   timestamp: number;
   payloadJson: string;
@@ -167,6 +167,39 @@ function handleRawWireMessage(rawJson: string) {
     if (envelope.type === 'NETWORK_EVENT') {
       const event: NetworkEventDto = JSON.parse(envelope.payloadJson);
       renderTerminalEvent(event);
+      return;
+    }
+
+    if (envelope.type === 'WS_OPEN') {
+      const conn = JSON.parse(envelope.payloadJson);
+      console.log(`\x1b[32m[WS OPEN]\x1b[0m   ${conn.url} \x1b[90m[${conn.clientType || 'ws'}]\x1b[0m`);
+      return;
+    }
+
+    if (envelope.type === 'WS_FRAME') {
+      const frame = JSON.parse(envelope.payloadJson);
+      const dirBadge = frame.direction === 'tx'
+        ? '\x1b[34m[WS TX]\x1b[0m'
+        : '\x1b[32m[WS RX]\x1b[0m';
+      const size = `${frame.payload?.sizeBytes || 0}B`;
+      const opcode = frame.opcode?.toUpperCase() || 'TEXT';
+      const preview = frame.payload?.content
+        ? (frame.payload.content.length > 60 ? frame.payload.content.substring(0, 60) + '...' : frame.payload.content)
+        : (frame.payload?.hexPreview ? `hex:${frame.payload.hexPreview.substring(0, 20)}...` : '');
+      console.log(`${dirBadge}  ${opcode.padEnd(6)} ${size.padEnd(8)} ${preview}`);
+      return;
+    }
+
+    if (envelope.type === 'WS_CLOSE') {
+      const close = JSON.parse(envelope.payloadJson);
+      console.log(`\x1b[33m[WS CLOSE]\x1b[0m  Connection closed (code: ${close.closeCode || 1000})`);
+      return;
+    }
+
+    if (envelope.type === 'WS_ERROR') {
+      const err = JSON.parse(envelope.payloadJson);
+      console.log(`\x1b[31m[WS ERROR]\x1b[0m  ${err.message || 'WebSocket Error'}`);
+      return;
     }
   } catch (err: any) {
     console.error(`[PARSE ERROR] Invalid wire message: ${err.message}`);

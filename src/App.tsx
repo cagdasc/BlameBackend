@@ -9,7 +9,7 @@ import { TerminalTui } from './components/TerminalTui';
 import { RequestSimulator } from './components/RequestSimulator';
 import { CustomDispatcher } from './components/CustomDispatcher';
 import { DeviceManager } from './components/DeviceManager';
-import { NetworkEvent, DeviceInfo } from './types/inspector';
+import { NetworkEvent, DeviceInfo, WebSocketConnection, WebSocketFrameDto } from './types/inspector';
 import { liveSocketClient } from './engine/liveSocketClient';
 import { simulator } from './engine/mockClient';
 import { apiUrl } from './engine/apiConfig';
@@ -18,6 +18,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'tui' | 'scenarios' | 'dispatcher' | 'devices'>('tui');
   const [events, setEvents] = useState<NetworkEvent[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [wsConnections, setWsConnections] = useState<WebSocketConnection[]>([]);
+  const [selectedWsId, setSelectedWsId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [connectedDevices, setConnectedDevices] = useState<DeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('all');
@@ -41,13 +43,21 @@ export default function App() {
     }
   }
 
-  // Filter events by selected device
+  // Filter events and WebSockets by selected device
   const selectedDevice = connectedDevices.find(d => d.id === selectedDeviceId);
   const displayedEvents = selectedDeviceId === 'all'
     ? events
     : events.filter(e => {
         if (e.clientId && e.clientId === selectedDeviceId) return true;
         if (selectedDevice && e.deviceName && e.deviceName === selectedDevice.deviceName) return true;
+        return false;
+      });
+
+  const displayedWsConnections = selectedDeviceId === 'all'
+    ? wsConnections
+    : wsConnections.filter(w => {
+        if (w.clientId && w.clientId === selectedDeviceId) return true;
+        if (selectedDevice && w.deviceName && w.deviceName === selectedDevice.deviceName) return true;
         return false;
       });
 
@@ -153,6 +163,88 @@ export default function App() {
       setIsConnected(status);
     });
 
+    const handleWsConnection = (conn: WebSocketConnection) => {
+      if (!isMounted) return;
+      setWsConnections((prev) => {
+        const idx = prev.findIndex((c) => c.id === conn.id);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            ...conn,
+            frames: updated[idx].frames || conn.frames || []
+          };
+          return updated;
+        }
+        return [...prev, { ...conn, frames: conn.frames || [] }];
+      });
+    };
+
+    const handleWsFrame = (data: { frame: WebSocketFrameDto; connection?: WebSocketConnection }) => {
+      if (!isMounted) return;
+      setWsConnections((prev) => {
+        const idx = prev.findIndex((c) => c.id === data.frame.connectionId);
+        if (idx >= 0) {
+          const updated = [...prev];
+          const conn = { ...updated[idx] };
+          const frames = [...(conn.frames || [])];
+          if (!frames.some((f) => f.id === data.frame.id)) {
+            frames.push(data.frame);
+            if (frames.length > 500) frames.shift();
+          }
+          const size = Number(data.frame.payload?.sizeBytes || 0);
+          if (data.frame.direction === 'tx') {
+            conn.totalTxFrames = (conn.totalTxFrames || 0) + 1;
+            conn.totalTxBytes = (conn.totalTxBytes || 0) + size;
+          } else {
+            conn.totalRxFrames = (conn.totalRxFrames || 0) + 1;
+            conn.totalRxBytes = (conn.totalRxBytes || 0) + size;
+          }
+          conn.durationMs = Date.now() - conn.timestamp;
+          conn.frames = frames;
+          updated[idx] = conn;
+          return updated;
+        }
+        return prev;
+      });
+    };
+
+    const unsubLiveWsConn = liveSocketClient.onWsConnection(handleWsConnection);
+    const unsubLiveWsFrame = liveSocketClient.onWsFrame(handleWsFrame);
+    const unsubLiveWsClear = liveSocketClient.onWsClear(() => {
+      if (isMounted) setWsConnections([]);
+    });
+
+    const unsubSimWs = simulator.subscribeWs((data) => {
+      if (data.type === 'open' && data.connection) {
+        handleWsConnection(data.connection);
+      } else if (data.type === 'frame' && data.frame) {
+        handleWsFrame({ frame: data.frame, connection: data.connection });
+      } else if (data.type === 'close' && data.connection) {
+        handleWsConnection(data.connection);
+      } else if (data.type === 'error' && data.connection) {
+        handleWsConnection(data.connection);
+      }
+    });
+
+    // Hydrate existing WebSocket connections
+    fetch(apiUrl('/api/ws-connections'))
+      .then((r) => r.json())
+      .then((data) => {
+        if (isMounted && data.success && Array.isArray(data.connections)) {
+          setWsConnections((prev) => {
+            const map = new Map(prev.map((c) => [c.id, c]));
+            for (const c of data.connections) {
+              if (!map.has(c.id)) {
+                map.set(c.id, { ...c, frames: [] });
+              }
+            }
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+
     return () => {
       isMounted = false;
       unsubSim();
@@ -160,12 +252,18 @@ export default function App() {
       unsubLiveDevice();
       unsubLiveDeviceList();
       unsubLiveStatus();
+      unsubLiveWsConn();
+      unsubLiveWsFrame();
+      unsubLiveWsClear();
+      unsubSimWs();
     };
   }, []);
 
   const handleClear = () => {
     if (selectedDeviceId === 'all') {
       setEvents([]);
+      setWsConnections([]);
+      fetch(apiUrl('/api/ws-connections/clear'), { method: 'POST' }).catch(() => {});
     } else {
       // Clear only events from current selected device
       setEvents(prev => prev.filter(e => {
@@ -175,6 +273,7 @@ export default function App() {
       }));
     }
     setSelectedId(null);
+    setSelectedWsId(null);
   };
 
   const handleReconnectSocket = async () => {
@@ -207,12 +306,21 @@ export default function App() {
           <TerminalTui
             events={displayedEvents}
             selectedId={selectedId}
-            onSelectEvent={setSelectedId}
+            onSelectEvent={(id) => {
+              setSelectedId(id);
+              setSelectedWsId(null);
+            }}
             onClear={handleClear}
             connectedDevices={connectedDevices}
             selectedDeviceId={selectedDeviceId}
             onSelectDeviceFilter={setSelectedDeviceId}
             totalEventCount={events.length}
+            wsConnections={displayedWsConnections}
+            selectedWsId={selectedWsId}
+            onSelectWsConnection={(wsId) => {
+              setSelectedWsId(wsId);
+              setSelectedId(null);
+            }}
           />
         )}
 

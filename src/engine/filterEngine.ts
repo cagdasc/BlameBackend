@@ -1,4 +1,4 @@
-import { NetworkEvent, FilterCriteria } from '../types/inspector';
+import { NetworkEvent, FilterCriteria, WebSocketConnection, WebSocketFrameDto } from '../types/inspector';
 
 export function parseFilterQuery(raw: string): FilterCriteria {
   const trimmed = raw.trim();
@@ -30,6 +30,14 @@ export function parseFilterQuery(raw: string): FilterCriteria {
       criteria.isGraphQl = true;
     } else if (token === 'has:gql-errors' || token === 'gql-error') {
       criteria.hasGraphQlError = true;
+    } else if (token === 'ws' || token === 'websocket' || token === 'is:ws' || token === 'is:websocket' || token === 'type:ws' || token === 'type:websocket') {
+      criteria.isWebSocket = true;
+    } else if (token === 'ws:tx' || token === 'dir:tx') {
+      criteria.wsDirection = 'tx';
+    } else if (token === 'ws:rx' || token === 'dir:rx') {
+      criteria.wsDirection = 'rx';
+    } else if (token.startsWith('opcode:')) {
+      criteria.wsOpcode = token.slice(7).toLowerCase();
     } else if (token.startsWith('device:')) {
       criteria.device = token.slice(7).toLowerCase();
     } else if (token.startsWith('protocol:')) {
@@ -203,3 +211,64 @@ export function matchesFilter(event: NetworkEvent, criteria: FilterCriteria): bo
 
   return true;
 }
+
+export function matchesWebSocketFilter(conn: WebSocketConnection, criteria: FilterCriteria): boolean {
+  if (!criteria.raw) return true;
+
+  // Filter by host
+  if (criteria.host && !conn.host.toLowerCase().includes(criteria.host)) {
+    return false;
+  }
+
+  // Filter by status (open, closed, error)
+  if (criteria.status && conn.status !== criteria.status) {
+    return false;
+  }
+
+  // Filter by platform / device
+  if (criteria.device) {
+    const dev = criteria.device;
+    const matchName = conn.deviceName?.toLowerCase().includes(dev);
+    const matchId = conn.clientId?.toLowerCase().includes(dev);
+    const matchApp = conn.appName?.toLowerCase().includes(dev);
+    if (!matchName && !matchId && !matchApp) return false;
+  }
+
+  // Filter by search query
+  if (criteria.search) {
+    const term = criteria.search;
+    if (conn.url.toLowerCase().includes(term)) return true;
+    if (conn.host.toLowerCase().includes(term)) return true;
+    if (conn.path.toLowerCase().includes(term)) return true;
+    if (conn.clientType.toLowerCase().includes(term)) return true;
+
+    // Check headers
+    const headerMatch = Object.entries(conn.headers || {}).some(
+      ([k, v]) => k.toLowerCase().includes(term) || v.toLowerCase().includes(term)
+    );
+    if (headerMatch) return true;
+
+    // Check frames content
+    if (conn.frames && conn.frames.some(f => f.payload?.content?.toLowerCase().includes(term))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  return true;
+}
+
+export function matchesWebSocketFrame(frame: WebSocketFrameDto, filterTerm: string, directionFilter: 'all' | 'tx' | 'rx' = 'all'): boolean {
+  if (directionFilter !== 'all' && frame.direction !== directionFilter) {
+    return false;
+  }
+  if (!filterTerm) return true;
+  const term = filterTerm.toLowerCase();
+  if (frame.opcode.toLowerCase().includes(term)) return true;
+  if (frame.direction.toLowerCase().includes(term)) return true;
+  if (frame.payload?.content?.toLowerCase().includes(term)) return true;
+  if (frame.payload?.hexPreview?.toLowerCase().includes(term)) return true;
+  return false;
+}
+

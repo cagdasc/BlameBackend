@@ -1,8 +1,10 @@
-import { NetworkEvent, NetworkRequest, NetworkResponse, HttpMethod } from '../types/inspector';
+import { NetworkEvent, NetworkRequest, NetworkResponse, HttpMethod, WebSocketConnection, WebSocketFrameDto } from '../types/inspector';
 import { defaultRedactor } from './redactor';
 import { createPayload } from './payload';
+import { apiUrl } from './apiConfig';
 
 export type EventCallback = (event: NetworkEvent) => void;
+export type WsEventCallback = (data: { type: 'open' | 'frame' | 'close' | 'error'; connection?: WebSocketConnection; frame?: WebSocketFrameDto }) => void;
 
 function generateId(): string {
   return 'req_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36).slice(-4);
@@ -25,6 +27,7 @@ function parseUrl(fullUrl: string): { host: string; path: string } {
 
 export class AndroidNetworkSimulator {
   private listeners: EventCallback[] = [];
+  private wsListeners: WsEventCallback[] = [];
 
   public subscribe(cb: EventCallback): () => void {
     this.listeners.push(cb);
@@ -33,8 +36,31 @@ export class AndroidNetworkSimulator {
     };
   }
 
+  public subscribeWs(cb: WsEventCallback): () => void {
+    this.wsListeners.push(cb);
+    return () => {
+      this.wsListeners = this.wsListeners.filter(l => l !== cb);
+    };
+  }
+
   private emit(event: NetworkEvent) {
     this.listeners.forEach(cb => cb(event));
+  }
+
+  private emitWs(data: { type: 'open' | 'frame' | 'close' | 'error'; connection?: WebSocketConnection; frame?: WebSocketFrameDto }) {
+    this.wsListeners.forEach(cb => cb(data));
+    // Also post to server API if available so server SSE and other tabs stay in sync
+    try {
+      fetch(apiUrl('/api/simulate-ws'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: data.type === 'open' ? 'WS_OPEN' : data.type === 'frame' ? 'WS_FRAME' : data.type === 'close' ? 'WS_CLOSE' : 'WS_ERROR',
+          connection: data.connection,
+          frame: data.frame
+        })
+      }).catch(() => {});
+    } catch {}
   }
 
   /**
@@ -547,8 +573,204 @@ export class AndroidNetworkSimulator {
       responseHeaders: {
         'Content-Type': 'application/json; charset=utf-8'
       },
-      responseBody: JSON.stringify(response, null, 2)
     });
+  }
+
+  /**
+   * Scenario: Interactive WebSocket Chat Echo (Handshake -> Text message -> Echo Reply -> Ping/Pong)
+   */
+  public async triggerWebSocketEcho(): Promise<void> {
+    const connId = 'ws_echo_' + Date.now().toString(36);
+    const startTime = Date.now();
+    const conn: WebSocketConnection = {
+      id: connId,
+      timestamp: startTime,
+      url: 'wss://echo.websocket.org/chat',
+      host: 'echo.websocket.org',
+      path: '/chat',
+      headers: defaultRedactor.redactHeaders({
+        'Upgrade': 'websocket',
+        'Connection': 'Upgrade',
+        'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+        'Sec-WebSocket-Version': '13',
+        'Authorization': 'Bearer sec_token_secret_12345'
+      }).redacted,
+      clientType: 'okhttp',
+      status: 'open',
+      totalTxFrames: 0,
+      totalRxFrames: 0,
+      totalTxBytes: 0,
+      totalRxBytes: 0,
+      frames: []
+    };
+
+    // 1. Connection Open
+    this.emitWs({ type: 'open', connection: conn });
+    await new Promise(r => setTimeout(r, 120));
+
+    // 2. Client sends chat greeting (TX)
+    const msg1 = JSON.stringify({ type: 'join', user: 'cagdas', room: 'dev-lounge', client: 'BlameBackend-v0.0.3' }, null, 2);
+    const frame1: WebSocketFrameDto = {
+      id: 'frame_1_' + Date.now().toString(36),
+      connectionId: connId,
+      timestamp: Date.now(),
+      direction: 'tx',
+      opcode: 'text',
+      payload: createPayload(msg1, 'application/json')
+    };
+    this.emitWs({ type: 'frame', connection: conn, frame: frame1 });
+    await new Promise(r => setTimeout(r, 150));
+
+    // 3. Server sends join ack (RX)
+    const ack = JSON.stringify({ status: 'joined', room: 'dev-lounge', activePeers: 4, welcome: 'Welcome to BlameBackend WebSocket preview' }, null, 2);
+    const frame2: WebSocketFrameDto = {
+      id: 'frame_2_' + Date.now().toString(36),
+      connectionId: connId,
+      timestamp: Date.now(),
+      direction: 'rx',
+      opcode: 'text',
+      payload: createPayload(ack, 'application/json')
+    };
+    this.emitWs({ type: 'frame', connection: conn, frame: frame2 });
+    await new Promise(r => setTimeout(r, 200));
+
+    // 4. Client sends heartbeat ping (TX)
+    const pingBytes = new Uint8Array([0x09, 0x00, 0x04, 0x70, 0x69, 0x6e, 0x67]);
+    const frame3: WebSocketFrameDto = {
+      id: 'frame_3_' + Date.now().toString(36),
+      connectionId: connId,
+      timestamp: Date.now(),
+      direction: 'tx',
+      opcode: 'ping',
+      payload: createPayload(pingBytes, 'application/octet-stream')
+    };
+    this.emitWs({ type: 'frame', connection: conn, frame: frame3 });
+    await new Promise(r => setTimeout(r, 80));
+
+    // 5. Server replies with pong (RX)
+    const pongBytes = new Uint8Array([0x0A, 0x00, 0x04, 0x70, 0x6f, 0x6e, 0x67]);
+    const frame4: WebSocketFrameDto = {
+      id: 'frame_4_' + Date.now().toString(36),
+      connectionId: connId,
+      timestamp: Date.now(),
+      direction: 'rx',
+      opcode: 'pong',
+      payload: createPayload(pongBytes, 'application/octet-stream')
+    };
+    this.emitWs({ type: 'frame', connection: conn, frame: frame4 });
+  }
+
+  /**
+   * Scenario: High-Frequency Market Ticker (Ktor Client wss:// stream with rapid JSON frames)
+   */
+  public async triggerWebSocketTicker(): Promise<void> {
+    const connId = 'ws_ticker_' + Date.now().toString(36);
+    const startTime = Date.now();
+    const conn: WebSocketConnection = {
+      id: connId,
+      timestamp: startTime,
+      url: 'wss://stream.binance.com:9443/ws/btcusdt@trade',
+      host: 'stream.binance.com',
+      path: '/ws/btcusdt@trade',
+      headers: defaultRedactor.redactHeaders({
+        'Host': 'stream.binance.com:9443',
+        'User-Agent': 'Ktor client 3.0.3 (Linux X64 / Android)',
+        'Sec-WebSocket-Version': '13'
+      }).redacted,
+      clientType: 'ktor',
+      status: 'open',
+      totalTxFrames: 0,
+      totalRxFrames: 0,
+      totalTxBytes: 0,
+      totalRxBytes: 0,
+      frames: []
+    };
+
+    this.emitWs({ type: 'open', connection: conn });
+    await new Promise(r => setTimeout(r, 100));
+
+    // Subscription frame TX
+    const sub = JSON.stringify({ method: 'SUBSCRIBE', params: ['btcusdt@trade', 'ethusdt@trade'], id: 1 }, null, 2);
+    this.emitWs({
+      type: 'frame',
+      connection: conn,
+      frame: {
+        id: 'frame_sub_' + Date.now().toString(36),
+        connectionId: connId,
+        timestamp: Date.now(),
+        direction: 'tx',
+        opcode: 'text',
+        payload: createPayload(sub, 'application/json')
+      }
+    });
+
+    // 3 rapid price updates RX
+    const prices = [68420.50, 68422.10, 68418.75];
+    for (let i = 0; i < prices.length; i++) {
+      await new Promise(r => setTimeout(r, 120));
+      const trade = JSON.stringify({
+        e: 'trade',
+        E: Date.now(),
+        s: 'BTCUSDT',
+        t: 123456780 + i,
+        p: prices[i].toFixed(2),
+        q: (0.15 + i * 0.08).toFixed(4),
+        b: 8877665 + i,
+        a: 8877670 + i,
+        T: Date.now(),
+        m: i % 2 === 0
+      }, null, 2);
+
+      this.emitWs({
+        type: 'frame',
+        connection: conn,
+        frame: {
+          id: `frame_tick_${i}_` + Date.now().toString(36),
+          connectionId: connId,
+          timestamp: Date.now(),
+          direction: 'rx',
+          opcode: 'text',
+          payload: createPayload(trade, 'application/json')
+        }
+      });
+    }
+  }
+
+  /**
+   * Scenario: WebSocket Handshake Failure / Network Error
+   */
+  public async triggerWebSocketError(): Promise<void> {
+    const connId = 'ws_err_' + Date.now().toString(36);
+    const startTime = Date.now();
+    const conn: WebSocketConnection = {
+      id: connId,
+      timestamp: startTime,
+      url: 'wss://secure-gateway.internal:9999/live-stream',
+      host: 'secure-gateway.internal',
+      path: '/live-stream',
+      headers: defaultRedactor.redactHeaders({
+        'Host': 'secure-gateway.internal:9999',
+        'Authorization': 'Bearer expired_token_secret'
+      }).redacted,
+      clientType: 'okhttp',
+      status: 'connecting',
+      totalTxFrames: 0,
+      totalRxFrames: 0,
+      totalTxBytes: 0,
+      totalRxBytes: 0,
+      frames: []
+    };
+
+    this.emitWs({ type: 'open', connection: conn });
+    await new Promise(r => setTimeout(r, 220));
+
+    conn.status = 'error';
+    conn.error = {
+      errorType: 'UpgradeHttpException',
+      message: 'HTTP 401 Unauthorized: Handshake failed (bad credentials or expired bearer token)'
+    };
+    conn.durationMs = 220;
+    this.emitWs({ type: 'error', connection: conn });
   }
 }
 

@@ -10,7 +10,8 @@ import {
   Layers,
   Sparkles,
   CheckCircle2,
-  Zap
+  Zap,
+  Radio
 } from 'lucide-react';
 
 interface RequestSimulatorProps {
@@ -86,6 +87,39 @@ export const RequestSimulator: React.FC<RequestSimulatorProps> = ({ onEventTrigg
       description: 'The classic GraphQL trap: HTTP status 200 OK, but payload contains errors array. BlameBackend flags this with GQL ERR.',
       icon: AlertTriangle,
       action: () => simulator.triggerApolloResolverError()
+    },
+    {
+      id: 'ws-echo',
+      title: 'OkHttp: WebSocket Echo Chat (Duplex Frames)',
+      client: 'OkHttp 4.12',
+      method: 'WS',
+      url: 'wss://echo.websocket.org/chat',
+      badge: 'WS Stream (TX/RX)',
+      description: 'Full duplex WebSocket connection with handshake, text frame exchanges, ping/pong frames, and microsecond delta timing.',
+      icon: Radio,
+      action: () => simulator.triggerWebSocketEcho()
+    },
+    {
+      id: 'ws-ticker',
+      title: 'Ktor: WebSocket Rapid Market Ticker',
+      client: 'Ktor Client 3.0',
+      method: 'WS',
+      url: 'wss://stream.binance.com:9443/ws/btcusdt@trade',
+      badge: 'WS High Frequency',
+      description: 'High-frequency real-time stream receiving rapid JSON price update frames over persistent wss:// session.',
+      icon: Radio,
+      action: () => simulator.triggerWebSocketTicker()
+    },
+    {
+      id: 'ws-error',
+      title: 'OkHttp: WebSocket 401 Handshake Failure',
+      client: 'OkHttp 4.12',
+      method: 'WS',
+      url: 'wss://secure-gateway.internal:9999/live-stream',
+      badge: 'WS Handshake Error',
+      description: 'Simulates a WebSocket handshake failure due to expired auth credentials, tagged with error badge in console.',
+      icon: AlertTriangle,
+      action: () => simulator.triggerWebSocketError()
     },
     {
       id: 'okhttp-get-users',

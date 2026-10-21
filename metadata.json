@@ -1,6 +1,6 @@
 {
   "name": "Android Network Inspector",
-  "description": "Lightweight Kotlin Multiplatform network inspection tool for Ktor and OkHttp (Android, iOS, Desktop, Server) with real-time terminal TUI, protocol streaming, and safe body buffering.",
+  "description": "Lightweight Kotlin Multiplatform network inspection tool for Ktor, OkHttp, and Apollo GraphQL (Android, iOS, Desktop, Server) with real-time terminal TUI, WebSocket stream inspection, and safe body buffering.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

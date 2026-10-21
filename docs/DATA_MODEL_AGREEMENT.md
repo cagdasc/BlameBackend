@@ -52,7 +52,11 @@ enum class MessageType {
     NETWORK_EVENT,
     PING,
     PONG,
-    GOODBYE
+    GOODBYE,
+    WS_OPEN,
+    WS_FRAME,
+    WS_CLOSE,
+    WS_ERROR
 }
 
 @Serializable
@@ -75,7 +79,11 @@ export type WireMessageType =
   | 'NETWORK_EVENT'
   | 'PING'
   | 'PONG'
-  | 'GOODBYE';
+  | 'GOODBYE'
+  | 'WS_OPEN'
+  | 'WS_FRAME'
+  | 'WS_CLOSE'
+  | 'WS_ERROR';
 
 export interface WireEnvelope {
   type: WireMessageType;
@@ -215,6 +223,46 @@ Used for both Request and Response body representations.
 | `sendMs` | `Long?` | `number?` | `"sendMs"` | Yes | Time taken to transmit request headers and body |
 | `waitMs` | `Long?` | `number?` | `"waitMs"` | Yes | Time to first byte (TTFB) |
 | `receiveMs` | `Long?` | `number?` | `"receiveMs"` | Yes | Time taken to stream response body |
+
+---
+
+### 4.7 `WebSocketConnectionDto` ⟷ `WebSocketConnection`
+
+Represents an active or closed WebSocket session initiated by OkHttp or Ktor.
+
+| Field | Kotlin Type | TypeScript Type | JSON Key | Nullable | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `String` | `string` | `"id"` | No | Unique connection UUID |
+| `timestamp` | `Long` | `number` | `"timestamp"` | No | Connection start timestamp in epoch ms |
+| `url` | `String` | `string` | `"url"` | No | Target WebSocket URL (`ws://` or `wss://`) |
+| `host` | `String` | `string` | `"host"` | No | Target host domain / IP |
+| `path` | `String` | `string` | `"path"` | No | Handshake endpoint path |
+| `headers` | `Map<String, String>` | `Record<string, string>` | `"headers"` | No | Redacted handshake headers |
+| `clientType` | `String` | `'okhttp' \| 'ktor' \| string` | `"clientType"` | No | Client library |
+| `status` | `String` | `'connecting' \| 'open' \| 'closed' \| 'error'` | `"status"` | No | Current session state |
+| `closeCode` | `Int?` | `number \| null` | `"closeCode"` | Yes | WebSocket close status code (e.g. 1000) |
+| `closeReason` | `String?` | `string \| null` | `"closeReason"` | Yes | WebSocket close reason text |
+| `error` | `NetworkErrorDto?` | `NetworkError \| null` | `"error"` | Yes | Handshake or stream exception |
+| `totalTxFrames` | `Int` | `number` | `"totalTxFrames"` | No | Count of sent frames (server/client tracked) |
+| `totalRxFrames` | `Int` | `number` | `"totalRxFrames"` | No | Count of received frames |
+| `totalTxBytes` | `Long` | `number` | `"totalTxBytes"` | No | Total transmitted payload bytes |
+| `totalRxBytes` | `Long` | `number` | `"totalRxBytes"` | No | Total received payload bytes |
+| `durationMs` | `Long?` | `number \| null` | `"durationMs"` | Yes | Active session duration in ms |
+
+---
+
+### 4.8 `WebSocketFrameDto` ⟷ `WebSocketFrame`
+
+Represents an individual text or binary frame sent or received over a WebSocket connection.
+
+| Field | Kotlin Type | TypeScript Type | JSON Key | Nullable | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `String` | `string` | `"id"` | No | Unique frame UUID |
+| `connectionId` | `String` | `string` | `"connectionId"` | No | ID of parent WebSocket connection |
+| `timestamp` | `Long` | `number` | `"timestamp"` | No | Frame transmission epoch ms |
+| `direction` | `String` | `'tx' \| 'rx'` | `"direction"` | No | `'tx'` (sent) or `'rx'` (received) |
+| `opcode` | `String` | `'text' \| 'binary' \| 'ping' \| 'pong' \| 'close'` | `"opcode"` | No | Frame opcode |
+| `payload` | `PayloadDto` | `Payload` | `"payload"` | No | Frame content with 64 KB cap and hex preview |
 
 ---
 

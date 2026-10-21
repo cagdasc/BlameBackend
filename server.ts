@@ -31,6 +31,14 @@ async function startServer() {
   const connectedClients = new Map<string, ConnectedClientSession>();
   let clientIdCounter = 1;
 
+  // In-memory WebSocket sessions storage (bounded ring buffer of frames per connection)
+  interface StoredWsSession {
+    connection: any;
+    frames: any[];
+  }
+  const wsSessions = new Map<string, StoredWsSession>();
+  const MAX_WS_FRAMES_PER_CONNECTION = 500;
+
   let tcpServer: net.Server | null = null;
   let isTcpServerListening = false;
   let tcpServerError: string | null = null;
@@ -180,6 +188,89 @@ async function startServer() {
                 clientId,
                 device: session.deviceInfo
               });
+            } else if (envelope.type === 'WS_OPEN') {
+              const wsConn = JSON.parse(envelope.payloadJson);
+              wsConn.clientId = clientId;
+              wsConn.deviceName = session.deviceInfo?.deviceName || clientId;
+              wsConn.appName = session.deviceInfo?.appName || '';
+              wsConn.osVersion = session.deviceInfo?.osVersion || '';
+              wsConn.status = 'open';
+              wsConn.totalTxFrames = wsConn.totalTxFrames || 0;
+              wsConn.totalRxFrames = wsConn.totalRxFrames || 0;
+              wsConn.totalTxBytes = wsConn.totalTxBytes || 0;
+              wsConn.totalRxBytes = wsConn.totalRxBytes || 0;
+
+              const stored: StoredWsSession = {
+                connection: wsConn,
+                frames: []
+              };
+              wsSessions.set(wsConn.id, stored);
+              console.log(`[BlameBackend Server] WebSocket connection opened: ${wsConn.url} [ID: ${wsConn.id}]`);
+              broadcastSse({
+                type: 'WS_CONNECTION',
+                connection: wsConn,
+                clientId,
+                device: session.deviceInfo
+              });
+            } else if (envelope.type === 'WS_FRAME') {
+              const frame = JSON.parse(envelope.payloadJson);
+              const stored = wsSessions.get(frame.connectionId);
+              if (stored) {
+                const conn = stored.connection;
+                const size = Number(frame.payload?.sizeBytes || 0);
+                if (frame.direction === 'tx') {
+                  conn.totalTxFrames = (conn.totalTxFrames || 0) + 1;
+                  conn.totalTxBytes = (conn.totalTxBytes || 0) + size;
+                } else {
+                  conn.totalRxFrames = (conn.totalRxFrames || 0) + 1;
+                  conn.totalRxBytes = (conn.totalRxBytes || 0) + size;
+                }
+                conn.durationMs = Date.now() - conn.timestamp;
+                stored.frames.push(frame);
+                if (stored.frames.length > MAX_WS_FRAMES_PER_CONNECTION) {
+                  stored.frames.shift();
+                }
+                broadcastSse({
+                  type: 'WS_FRAME',
+                  frame,
+                  connection: conn,
+                  clientId
+                });
+              }
+            } else if (envelope.type === 'WS_CLOSE') {
+              const closeData = JSON.parse(envelope.payloadJson);
+              const connId = closeData.connectionId || closeData.id;
+              const stored = wsSessions.get(connId);
+              if (stored) {
+                stored.connection.status = 'closed';
+                stored.connection.closeCode = closeData.closeCode ?? 1000;
+                stored.connection.closeReason = closeData.closeReason ?? 'Normal Closure';
+                stored.connection.durationMs = Date.now() - stored.connection.timestamp;
+                console.log(`[BlameBackend Server] WebSocket connection closed: ${stored.connection.url} (Code: ${stored.connection.closeCode})`);
+                broadcastSse({
+                  type: 'WS_CONNECTION',
+                  connection: stored.connection,
+                  clientId
+                });
+              }
+            } else if (envelope.type === 'WS_ERROR') {
+              const errData = JSON.parse(envelope.payloadJson);
+              const connId = errData.connectionId || errData.id;
+              const stored = wsSessions.get(connId);
+              if (stored) {
+                stored.connection.status = 'error';
+                stored.connection.error = errData.error || {
+                  errorType: 'WebSocketException',
+                  message: errData.message || 'WebSocket connection error'
+                };
+                stored.connection.durationMs = Date.now() - stored.connection.timestamp;
+                console.warn(`[BlameBackend Server] WebSocket error on ${stored.connection.url}`);
+                broadcastSse({
+                  type: 'WS_CONNECTION',
+                  connection: stored.connection,
+                  clientId
+                });
+              }
             } else if (envelope.type === 'PING') {
               // Bidirectional PONG reply
               socket.write(JSON.stringify({
@@ -406,6 +497,97 @@ async function startServer() {
     });
   });
 
+  // --- WebSocket Inspection REST Endpoints ---
+
+  // Get all active / stored WebSocket connections
+  app.get('/api/ws-connections', (req: Request, res: Response) => {
+    const list = Array.from(wsSessions.values()).map(s => ({
+      ...s.connection,
+      frameCount: s.frames.length
+    }));
+    res.json({ success: true, count: list.length, connections: list });
+  });
+
+  // Get specific WebSocket connection with its buffered frames
+  app.get('/api/ws-connections/:id', (req: Request, res: Response) => {
+    const session = wsSessions.get(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'WebSocket session not found' });
+    }
+    res.json({ success: true, connection: session.connection, frames: session.frames });
+  });
+
+  // Clear WebSocket sessions
+  app.post('/api/ws-connections/clear', (req: Request, res: Response) => {
+    wsSessions.clear();
+    broadcastSse({ type: 'WS_CLEAR' });
+    res.json({ success: true });
+  });
+
+  // Simulate WebSocket event (for UI testing & demo without external device)
+  app.post('/api/simulate-ws', (req: Request, res: Response) => {
+    const { type, connection, frame, closeCode, closeReason, error } = req.body;
+    if (type === 'WS_OPEN' && connection) {
+      const stored: StoredWsSession = {
+        connection: {
+          ...connection,
+          status: 'open',
+          totalTxFrames: 0,
+          totalRxFrames: 0,
+          totalTxBytes: 0,
+          totalRxBytes: 0
+        },
+        frames: []
+      };
+      wsSessions.set(connection.id, stored);
+      broadcastSse({ type: 'WS_CONNECTION', connection: stored.connection });
+      return res.json({ success: true, connection: stored.connection });
+    } else if (type === 'WS_FRAME' && frame) {
+      const stored = wsSessions.get(frame.connectionId);
+      if (stored) {
+        const size = Number(frame.payload?.sizeBytes || 0);
+        if (frame.direction === 'tx') {
+          stored.connection.totalTxFrames = (stored.connection.totalTxFrames || 0) + 1;
+          stored.connection.totalTxBytes = (stored.connection.totalTxBytes || 0) + size;
+        } else {
+          stored.connection.totalRxFrames = (stored.connection.totalRxFrames || 0) + 1;
+          stored.connection.totalRxBytes = (stored.connection.totalRxBytes || 0) + size;
+        }
+        stored.connection.durationMs = Date.now() - stored.connection.timestamp;
+        stored.frames.push(frame);
+        if (stored.frames.length > MAX_WS_FRAMES_PER_CONNECTION) stored.frames.shift();
+        broadcastSse({ type: 'WS_FRAME', frame, connection: stored.connection });
+        return res.json({ success: true });
+      }
+      return res.status(404).json({ error: 'Connection not found' });
+    } else if (type === 'WS_CLOSE') {
+      const connId = req.body.connectionId || connection?.id;
+      const stored = wsSessions.get(connId);
+      if (stored) {
+        stored.connection.status = 'closed';
+        stored.connection.closeCode = closeCode ?? 1000;
+        stored.connection.closeReason = closeReason ?? 'Normal Closure';
+        stored.connection.durationMs = Date.now() - stored.connection.timestamp;
+        broadcastSse({ type: 'WS_CONNECTION', connection: stored.connection });
+        return res.json({ success: true, connection: stored.connection });
+      }
+    } else if (type === 'WS_ERROR') {
+      const connId = req.body.connectionId || connection?.id;
+      const stored = wsSessions.get(connId);
+      if (stored) {
+        stored.connection.status = 'error';
+        stored.connection.error = error || {
+          errorType: 'WebSocketException',
+          message: 'Simulated WebSocket error'
+        };
+        stored.connection.durationMs = Date.now() - stored.connection.timestamp;
+        broadcastSse({ type: 'WS_CONNECTION', connection: stored.connection });
+        return res.json({ success: true, connection: stored.connection });
+      }
+    }
+    res.json({ success: true });
+  });
+
   // Live SSE event stream for browser
   app.get('/api/stream', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -414,14 +596,18 @@ async function startServer() {
     res.flushHeaders();
 
     const config = adbManager.getConfig();
-    // Send initial status with full device list
+    // Send initial status with full device list & active WebSocket connections
     res.write(`data: ${JSON.stringify({
       type: 'STATUS',
       connected: connectedClients.size > 0,
       port: config.port,
       activeClientsCount: connectedClients.size,
       devices: getActiveDevicesList(),
-      device: getPrimaryDevice()
+      device: getPrimaryDevice(),
+      wsConnections: Array.from(wsSessions.values()).map(s => ({
+        ...s.connection,
+        frameCount: s.frames.length
+      }))
     })}\n\n`);
 
     sseClients.push(res);

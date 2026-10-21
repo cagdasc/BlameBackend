@@ -3,13 +3,16 @@
  * Automatically ingests live HTTP requests and device metadata.
  */
 
-import { NetworkEvent, DeviceInfo } from '../types/inspector';
+import { NetworkEvent, DeviceInfo, WebSocketConnection, WebSocketFrameDto } from '../types/inspector';
 import { apiUrl } from './apiConfig';
 
 export type LiveStreamCallback = (event: NetworkEvent) => void;
 export type DeviceCallback = (device: DeviceInfo) => void;
 export type DeviceListCallback = (devices: DeviceInfo[]) => void;
 export type StatusCallback = (connected: boolean) => void;
+export type WsConnectionCallback = (conn: WebSocketConnection) => void;
+export type WsFrameCallback = (data: { frame: WebSocketFrameDto; connection?: WebSocketConnection }) => void;
+export type WsClearCallback = () => void;
 
 class LiveSocketClient {
   private eventSource: EventSource | null = null;
@@ -17,6 +20,9 @@ class LiveSocketClient {
   private onDeviceListeners: DeviceCallback[] = [];
   private onDeviceListListeners: DeviceListCallback[] = [];
   private onStatusListeners: StatusCallback[] = [];
+  private onWsConnectionListeners: WsConnectionCallback[] = [];
+  private onWsFrameListeners: WsFrameCallback[] = [];
+  private onWsClearListeners: WsClearCallback[] = [];
   private isConnected = false;
 
   public connect() {
@@ -38,6 +44,11 @@ class LiveSocketClient {
             if (Array.isArray(msg.devices)) {
               this.onDeviceListListeners.forEach(cb => cb(msg.devices));
             }
+            if (Array.isArray(msg.wsConnections)) {
+              msg.wsConnections.forEach((conn: any) => {
+                this.onWsConnectionListeners.forEach(cb => cb(conn));
+              });
+            }
           } else if (msg.type === 'DEVICE_INFO') {
             if (msg.device) {
               this.onDeviceListeners.forEach(cb => cb(msg.device));
@@ -51,6 +62,16 @@ class LiveSocketClient {
             }
           } else if (msg.type === 'NETWORK_EVENT') {
             this.onEventListeners.forEach(cb => cb(msg.event));
+          } else if (msg.type === 'WS_CONNECTION') {
+            if (msg.connection) {
+              this.onWsConnectionListeners.forEach(cb => cb(msg.connection));
+            }
+          } else if (msg.type === 'WS_FRAME') {
+            if (msg.frame) {
+              this.onWsFrameListeners.forEach(cb => cb({ frame: msg.frame, connection: msg.connection }));
+            }
+          } else if (msg.type === 'WS_CLEAR') {
+            this.onWsClearListeners.forEach(cb => cb());
           }
         } catch (err) {
           console.warn('[LiveSocketClient] Error parsing stream message:', err);
@@ -91,6 +112,27 @@ class LiveSocketClient {
     this.onStatusListeners.push(cb);
     return () => {
       this.onStatusListeners = this.onStatusListeners.filter(l => l !== cb);
+    };
+  }
+
+  public onWsConnection(cb: WsConnectionCallback): () => void {
+    this.onWsConnectionListeners.push(cb);
+    return () => {
+      this.onWsConnectionListeners = this.onWsConnectionListeners.filter(l => l !== cb);
+    };
+  }
+
+  public onWsFrame(cb: WsFrameCallback): () => void {
+    this.onWsFrameListeners.push(cb);
+    return () => {
+      this.onWsFrameListeners = this.onWsFrameListeners.filter(l => l !== cb);
+    };
+  }
+
+  public onWsClear(cb: WsClearCallback): () => void {
+    this.onWsClearListeners.push(cb);
+    return () => {
+      this.onWsClearListeners = this.onWsClearListeners.filter(l => l !== cb);
     };
   }
 }

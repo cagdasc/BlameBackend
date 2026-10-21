@@ -18,6 +18,10 @@ export type WireMessageType =
   | 'PING'
   | 'PONG'
   | 'GOODBYE'
+  | 'WS_OPEN'
+  | 'WS_FRAME'
+  | 'WS_CLOSE'
+  | 'WS_ERROR'
   // Simulation variants for fine-grained internal simulator UI
   | 'NETWORK_EVENT_START'
   | 'NETWORK_EVENT_RESPONSE'
@@ -159,6 +163,63 @@ export interface DeviceInfo extends HelloPayload {
   clientType?: string;
 }
 
+/**
+ * WebSocket Direction: 'tx' (outgoing client->server) or 'rx' (incoming server->client)
+ */
+export type WebSocketDirection = 'tx' | 'rx';
+
+/**
+ * WebSocket Frame Opcode
+ */
+export type WebSocketOpcode = 'text' | 'binary' | 'ping' | 'pong' | 'close';
+
+/**
+ * WebSocket frame matching Kotlin `WebSocketFrameDto`
+ */
+export interface WebSocketFrameDto {
+  id: string;
+  connectionId: string;
+  timestamp: number;
+  direction: WebSocketDirection;
+  opcode: WebSocketOpcode;
+  payload: PayloadDto;
+}
+
+export type WebSocketFrame = WebSocketFrameDto;
+
+/**
+ * WebSocket connection metadata matching Kotlin `WebSocketConnectionDto`
+ */
+export interface WebSocketConnectionDto {
+  id: string;
+  timestamp: number;
+  url: string;
+  host: string;
+  path: string;
+  headers: Record<string, string>;
+  clientType: 'okhttp' | 'ktor' | string;
+  status: 'connecting' | 'open' | 'closed' | 'error';
+  closeCode?: number | null;
+  closeReason?: string | null;
+  error?: NetworkErrorDto | null;
+  totalTxFrames?: number;
+  totalRxFrames?: number;
+  totalTxBytes?: number;
+  totalRxBytes?: number;
+  durationMs?: number | null;
+}
+
+/**
+ * Server-enriched WebSocket session with frame buffer
+ */
+export interface WebSocketConnection extends WebSocketConnectionDto {
+  frames: WebSocketFrameDto[];
+  clientId?: string;
+  deviceName?: string;
+  appName?: string;
+  osVersion?: string;
+}
+
 export interface FilterCriteria {
   raw: string;
   host?: string;
@@ -171,4 +232,8 @@ export interface FilterCriteria {
   operationType?: string;
   isGraphQl?: boolean;
   hasGraphQlError?: boolean;
+  isWebSocket?: boolean;
+  wsDirection?: 'tx' | 'rx';
+  wsOpcode?: string;
+  protocolType?: 'all' | 'http' | 'graphql' | 'websocket';
 }

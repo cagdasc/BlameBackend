@@ -39,13 +39,14 @@ Features are grouped into four cohesive phases and ordered sequentially to ensur
 
 ### Phase 1: Deep Protocol Inspection
 
-#### 1. GraphQL Inspection Support
+#### 1. GraphQL Inspection Support (Released in v0.0.3)
 - **Sequence**: `#1`
 - **Category**: Passive Protocol Decoders
-- **Target Modules**: `:network-inspector-core`, Web TUI, CLI
-- **Impact on Wire Protocol**: Minor (payload metadata extension).
+- **Status**: **Completed / Released in v0.0.3**
+- **Target Modules**: `:network-inspector-core`, `:network-inspector-apollo`, Web TUI, CLI
+- **Impact on Wire Protocol**: Minor (`operationName`, `operationType` payload metadata extension).
 - **Description**:
-  Provide first-class inspection for GraphQL operations executing over HTTP POST (and GET query strings).
+  Provide first-class inspection for GraphQL operations executing over HTTP POST (and GET query strings) using Apollo Kotlin and generic GraphQL clients.
 - **Key Capabilities**:
   - Automatically detect GraphQL requests via URL patterns (`/graphql`), `Content-Type: application/graphql-response+json`, or payload inspection (`query`, `mutation`, `subscription`).
   - Parse and display GraphQL operation type (`query`, `mutation`, `subscription`) and operation name (e.g. `query GetUserProfile`).
@@ -53,9 +54,10 @@ Features are grouped into four cohesive phases and ordered sequentially to ensur
   - TUI & CLI badges displaying `[GQL: query]` or `[GQL: mutation]`.
   - Filter network logs specifically by GraphQL operation name or type.
 
-#### 2. WebSocket Inspection Support
+#### 2. WebSocket Inspection Support (v0.0.4 - In Progress)
 - **Sequence**: `#2`
 - **Category**: Real-Time Duplex Protocol
+- **Status**: **In Progress (Host Daemon & Web Console Implemented)**
 - **Target Modules**: `:network-inspector-core`, `:network-inspector-ktor`, `:network-inspector-okhttp`, Daemon, Web TUI, CLI
 - **Impact on Wire Protocol**: Moderate (adds new frame envelope types).
 - **Description**:
@@ -147,9 +149,9 @@ Features are grouped into four cohesive phases and ordered sequentially to ensur
 
 | # | Feature | Phase | Category | Complexity | Target Release |
 |---|---|---|---|---|---|
-| **1** | **GraphQL Inspection Support** | Phase 1 | Deep Protocol Inspection | Low | `v0.2.0` |
-| **2** | **WebSocket Inspection Support** | Phase 1 | Deep Protocol Inspection | Medium | `v0.3.0` |
-| **3** | **Record Session (Export & Replay)** | Phase 2 | Observability & Portability | Medium | `v0.4.0` |
-| **4** | **Mock Response Engine** | Phase 3 | Active Interception | High | `v0.5.0` |
-| **5** | **Hold Response & Manipulate on the Fly** | Phase 3 | Active Interception | Very High | `v0.6.0` |
+| **1** | **GraphQL Inspection Support** | Phase 1 | Deep Protocol Inspection | Low | `v0.0.3` (Released) |
+| **2** | **WebSocket Inspection Support** | Phase 1 | Deep Protocol Inspection | Medium | `v0.0.4` (In Progress) |
+| **3** | **Record Session (Export & Replay)** | Phase 2 | Observability & Portability | Medium | `v0.5.0` |
+| **4** | **Mock Response Engine** | Phase 3 | Active Interception | High | `v0.6.0` |
+| **5** | **Hold Response & Manipulate on the Fly** | Phase 3 | Active Interception | Very High | `v0.7.0` |
 | **6** | **Server App to Compose Desktop & Web** | Phase 4 | Architecture Unification | High | `v1.0.0` |
